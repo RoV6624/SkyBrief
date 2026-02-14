@@ -59,3 +59,11 @@ tmux-*.log
 *.bak[0-9]
 * 2.*
 *\ 2.*
+
+# Build artifacts
+.next/
+coverage/
+"ios 2/"
+
+# Claude Code internal
+.claude/

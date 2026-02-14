@@ -1,0 +1,254 @@
+{
+  "V4": {
+    "id": "V4",
+    "type": "VICTOR",
+    "description": "Atlanta to St Louis via Volunteer",
+    "segments": [
+      {
+        "airway_id": "V4",
+        "sequence": 1,
+        "fix_identifier": "ATL",
+        "latitude_deg": 33.62910079956055,
+        "longitude_deg": -84.43509674072266,
+        "minimum_altitude": 2000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V4",
+        "sequence": 2,
+        "fix_identifier": "VUZ",
+        "latitude_deg": 33.67020034790039,
+        "longitude_deg": -86.8998031616211,
+        "minimum_altitude": 3000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V4",
+        "sequence": 3,
+        "fix_identifier": "INP",
+        "latitude_deg": 40.631900787353516,
+        "longitude_deg": -79.06590270996094,
+        "minimum_altitude": 3000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V4",
+        "sequence": 4,
+        "fix_identifier": "STL",
+        "latitude_deg": 38.86069869995117,
+        "longitude_deg": -90.4823989868164,
+        "minimum_altitude": 2000,
+        "maximum_altitude": null,
+        "direction": "both"
+      }
+    ]
+  },
+  "V12": {
+    "id": "V12",
+    "type": "VICTOR",
+    "description": "Great Lakes to Texas",
+    "segments": [
+      {
+        "airway_id": "V12",
+        "sequence": 1,
+        "fix_identifier": "CGT",
+        "latitude_deg": 41.5099983215332,
+        "longitude_deg": -87.57150268554688,
+        "minimum_altitude": 2000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V12",
+        "sequence": 2,
+        "fix_identifier": "BMI",
+        "latitude_deg": 40.48080062866211,
+        "longitude_deg": -88.93119812011719,
+        "minimum_altitude": 2500,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V12",
+        "sequence": 3,
+        "fix_identifier": "STL",
+        "latitude_deg": 38.86069869995117,
+        "longitude_deg": -90.4823989868164,
+        "minimum_altitude": 2000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V12",
+        "sequence": 4,
+        "fix_identifier": "TUL",
+        "latitude_deg": 36.1963005065918,
+        "longitude_deg": -95.78810119628906,
+        "minimum_altitude": 3000,
+        "maximum_altitude": null,
+        "direction": "both"
+      }
+    ]
+  },
+  "V16": {
+    "id": "V16",
+    "type": "VICTOR",
+    "description": "Atlanta to Florida",
+    "segments": [
+      {
+        "airway_id": "V16",
+        "sequence": 1,
+        "fix_identifier": "ATL",
+        "latitude_deg": 33.62910079956055,
+        "longitude_deg": -84.43509674072266,
+        "minimum_altitude": 2000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V16",
+        "sequence": 2,
+        "fix_identifier": "MCN",
+        "latitude_deg": 32.691200256347656,
+        "longitude_deg": -83.64720153808594,
+        "minimum_altitude": 2000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V16",
+        "sequence": 3,
+        "fix_identifier": "IJX",
+        "latitude_deg": 39.77640151977539,
+        "longitude_deg": -90.23870086669922,
+        "minimum_altitude": 2000,
+        "maximum_altitude": null,
+        "direction": "both"
+      }
+    ]
+  },
+  "V2": {
+    "id": "V2",
+    "type": "VICTOR",
+    "description": "California coast",
+    "segments": [
+      {
+        "airway_id": "V2",
+        "sequence": 1,
+        "fix_identifier": "LAX",
+        "latitude_deg": 33.933101654052734,
+        "longitude_deg": -118.43199920654297,
+        "minimum_altitude": 3000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V2",
+        "sequence": 2,
+        "fix_identifier": "SLI",
+        "latitude_deg": 33.78329849243164,
+        "longitude_deg": -118.05500030517578,
+        "minimum_altitude": 4000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V2",
+        "sequence": 3,
+        "fix_identifier": "NUC",
+        "latitude_deg": 33.02690124511719,
+        "longitude_deg": -118.58000183105469,
+        "minimum_altitude": 3000,
+        "maximum_altitude": null,
+        "direction": "both"
+      }
+    ]
+  },
+  "V23": {
+    "id": "V23",
+    "type": "VICTOR",
+    "description": "East-West cross country",
+    "segments": [
+      {
+        "airway_id": "V23",
+        "sequence": 1,
+        "fix_identifier": "JFK",
+        "latitude_deg": 40.63290023803711,
+        "longitude_deg": -73.77140045166016,
+        "minimum_altitude": 2000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V23",
+        "sequence": 2,
+        "fix_identifier": "HAR",
+        "latitude_deg": 40.30220031738281,
+        "longitude_deg": -77.0696029663086,
+        "minimum_altitude": 3000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V23",
+        "sequence": 3,
+        "fix_identifier": "AIR",
+        "latitude_deg": 40.016998291015625,
+        "longitude_deg": -80.81729888916016,
+        "minimum_altitude": 3000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V23",
+        "sequence": 4,
+        "fix_identifier": "APE",
+        "latitude_deg": 40.151100158691406,
+        "longitude_deg": -82.58830261230469,
+        "minimum_altitude": 3000,
+        "maximum_altitude": null,
+        "direction": "both"
+      }
+    ]
+  },
+  "V6": {
+    "id": "V6",
+    "type": "VICTOR",
+    "description": "Northeast corridor",
+    "segments": [
+      {
+        "airway_id": "V6",
+        "sequence": 1,
+        "fix_identifier": "BOS",
+        "latitude_deg": 42.357398986816406,
+        "longitude_deg": -70.989501953125,
+        "minimum_altitude": 2000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V6",
+        "sequence": 2,
+        "fix_identifier": "JFK",
+        "latitude_deg": 40.63290023803711,
+        "longitude_deg": -73.77140045166016,
+        "minimum_altitude": 2000,
+        "maximum_altitude": null,
+        "direction": "both"
+      },
+      {
+        "airway_id": "V6",
+        "sequence": 3,
+        "fix_identifier": "SAX",
+        "latitude_deg": 41.067501068115234,
+        "longitude_deg": -74.53829956054688,
+        "minimum_altitude": 2000,
+        "maximum_altitude": null,
+        "direction": "both"
+      }
+    ]
+  }
+}
