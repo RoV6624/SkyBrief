@@ -20,21 +20,22 @@ import { FUEL_PRICE_DEFAULTS } from "@/config/defaults";
 
 // Initialize Google Sign-In
 // Web Client ID is loaded from environment variables for security
-// NEVER hardcode credentials - use .env file instead
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
-if (!GOOGLE_WEB_CLIENT_ID) {
-  throw new Error(
-    "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID not found in environment variables. " +
-    "Please add it to your .env file."
+if (GOOGLE_WEB_CLIENT_ID) {
+  GoogleSignin.configure({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+  });
+} else {
+  console.warn(
+    "[Firebase] EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID not set — Google Sign-In disabled."
   );
 }
 
-GoogleSignin.configure({
-  webClientId: GOOGLE_WEB_CLIENT_ID,
-});
-
 export async function signInWithGoogle(): Promise<FirebaseAuthTypes.UserCredential> {
+  if (!GOOGLE_WEB_CLIENT_ID) {
+    throw new Error("Google Sign-In is not configured. Missing EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.");
+  }
   await GoogleSignin.hasPlayServices();
   const signInResult = await GoogleSignin.signIn();
   const idToken = signInResult?.data?.idToken;
@@ -109,9 +110,8 @@ export { statusCodes };
 const PROJECT_ID = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
 
 if (!PROJECT_ID) {
-  throw new Error(
-    "EXPO_PUBLIC_FIREBASE_PROJECT_ID not found in environment variables. " +
-    "Please add it to your .env file."
+  console.warn(
+    "[Firebase] EXPO_PUBLIC_FIREBASE_PROJECT_ID not set — Firestore disabled."
   );
 }
 
