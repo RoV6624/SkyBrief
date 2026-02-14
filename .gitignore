@@ -42,9 +42,9 @@ yarn-error.*
 /android
 
 # Firebase credentials
+GoogleService-Info.plist
 GoogleService-Info 2.plist
 google-services.json
-# GoogleService-Info.plist is tracked for EAS builds (it's client config, not a secret)
 
 # Logs
 tmux-*.log
