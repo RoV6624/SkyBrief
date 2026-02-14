@@ -29,9 +29,16 @@ function withFirebaseModularHeaders(config) {
       end
       if target.name.start_with?('RNFB')
         target.build_configurations.each do |bc|
-          flags = bc.build_settings['OTHER_CFLAGS'] || '$(inherited)'
-          unless flags.include?('-Wno-non-modular-include-in-framework-module')
-            bc.build_settings['OTHER_CFLAGS'] = "\#{flags} -Wno-non-modular-include-in-framework-module"
+          flags = bc.build_settings['OTHER_CFLAGS'] || ['$(inherited)']
+          if flags.is_a?(Array)
+            unless flags.include?('-Wno-non-modular-include-in-framework-module')
+              flags << '-Wno-non-modular-include-in-framework-module'
+              bc.build_settings['OTHER_CFLAGS'] = flags
+            end
+          else
+            unless flags.include?('-Wno-non-modular-include-in-framework-module')
+              bc.build_settings['OTHER_CFLAGS'] = "\#{flags} -Wno-non-modular-include-in-framework-module"
+            end
           end
         end
       end
