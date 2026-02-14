@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkyBrief — Support</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --accent: #0c8ce9;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      background: var(--card);
+      border-radius: 16px;
+      padding: 48px 40px;
+      border: 1px solid var(--border);
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .tagline {
+      color: var(--muted);
+      font-size: 16px;
+      margin-bottom: 36px;
+    }
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-top: 32px;
+      margin-bottom: 12px;
+      color: var(--accent);
+    }
+    p, li {
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+    ul {
+      padding-left: 24px;
+      margin-bottom: 16px;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .contact-box {
+      margin-top: 24px;
+      padding: 20px 24px;
+      background: #f1f5f9;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .contact-box p { margin-bottom: 4px; }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SkyBrief Support</h1>
+    <p class="tagline">Preflight weather briefings for general aviation pilots.</p>
+
+    <h2>Contact Us</h2>
+    <div class="contact-box">
+      <p>For support, bug reports, or feature requests:</p>
+      <p><a href="mailto:skybrief.app@gmail.com">skybrief.app@gmail.com</a></p>
+    </div>
+    <p>We typically respond within 48 hours.</p>
+
+    <h2>Frequently Asked Questions</h2>
+
+    <p><strong>Where does the weather data come from?</strong></p>
+    <p>All weather data (METARs, TAFs, NOTAMs, and charts) is sourced directly from <a href="https://aviationweather.gov">aviationweather.gov</a>, the official public API operated by NOAA and the National Weather Service.</p>
+
+    <p><strong>Is the AI briefing a replacement for an official weather briefing?</strong></p>
+    <p>No. SkyBrief is a supplemental tool. Pilots should always obtain an official weather briefing from an approved source (e.g., 1800wxbrief.com or FSS) before every flight.</p>
+
+    <p><strong>What aircraft are supported for Weight & Balance?</strong></p>
+    <p>SkyBrief includes built-in profiles for common GA aircraft (Cessna 172, Piper PA-28, and more). You can also create custom aircraft profiles with your own empty weight, arm, and CG envelope data.</p>
+
+    <p><strong>Does SkyBrief work offline?</strong></p>
+    <p>SkyBrief requires an internet connection to fetch current weather data. Your personal minimums, saved aircraft, and settings are stored locally and available offline.</p>
+
+    <p><strong>How do I report a bug?</strong></p>
+    <p>Send an email to <a href="mailto:skybrief.app@gmail.com">skybrief.app@gmail.com</a> with a description of the issue, the device you're using, and any screenshots if possible.</p>
+
+    <p><strong>How do I delete my account?</strong></p>
+    <p>You can delete your account from the Settings tab within the app. This removes your Firebase authentication data. Local data is removed when you uninstall the app.</p>
+
+    <h2>Privacy</h2>
+    <p>Read our <a href="privacy.html">Privacy Policy</a> for details on how SkyBrief handles your data.</p>
+
+    <div class="footer">
+      &copy; 2026 Rohith Velmurugan. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>

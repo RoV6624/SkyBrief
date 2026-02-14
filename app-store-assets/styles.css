@@ -1,0 +1,203 @@
+/* App Store Preview Screenshot Styles — iPhone 6.7" (1290×2796px) */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Screenshot Frame ────────────────────────────────────────────── */
+
+.screenshot-frame {
+  width: 1290px;
+  height: 2796px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── Text Area (top ~27%) ────────────────────────────────────────── */
+
+.text-area {
+  width: 100%;
+  padding: 140px 80px 60px;
+  text-align: center;
+  z-index: 2;
+  flex-shrink: 0;
+}
+
+.headline {
+  font-weight: 800;
+  font-size: 72px;
+  line-height: 1.1;
+  color: #ffffff;
+  margin-bottom: 20px;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.2);
+}
+
+.subheadline {
+  font-weight: 400;
+  font-size: 36px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* ── Device Frame ────────────────────────────────────────────────── */
+
+.device-wrapper {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 20px;
+}
+
+.device-frame {
+  width: 860px;
+  height: 1860px;
+  border-radius: 68px;
+  background: #000;
+  padding: 14px;
+  position: relative;
+  box-shadow:
+    0 40px 80px rgba(0, 0, 0, 0.35),
+    0 0 120px rgba(0, 0, 0, 0.15),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+.device-screen {
+  width: 100%;
+  height: 100%;
+  border-radius: 56px;
+  overflow: hidden;
+  position: relative;
+  background: #1a1a2e;
+}
+
+.device-screen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── Dynamic Island ──────────────────────────────────────────────── */
+
+.dynamic-island {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 190px;
+  height: 50px;
+  background: #000;
+  border-radius: 25px;
+  z-index: 10;
+}
+
+/* ── Placeholder (when no screenshot loaded) ─────────────────────── */
+
+.placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 28px;
+  font-weight: 600;
+  text-align: center;
+  padding: 40px;
+}
+
+/* ── Background Gradients ────────────────────────────────────────── */
+
+.bg-briefing {
+  background: linear-gradient(180deg, #1e90ff 0%, #87ceeb 50%, #e0efff 100%);
+}
+
+.bg-route {
+  background: linear-gradient(180deg, #0670c2 0%, #0c8ce9 50%, #3fa8ff 100%);
+}
+
+.bg-wb {
+  background: linear-gradient(180deg, #062847 0%, #085696 50%, #0c8ce9 100%);
+}
+
+.bg-alerts {
+  background: linear-gradient(180deg, #334155 0%, #475569 60%, #5a3a3a 100%);
+}
+
+.bg-charts {
+  background: linear-gradient(180deg, #94a3b8 0%, #b0c4de 50%, #d1d5db 100%);
+}
+
+.bg-charts .headline,
+.bg-charts .subheadline {
+  color: #1e293b;
+  text-shadow: none;
+}
+.bg-charts .subheadline {
+  color: rgba(30, 41, 59, 0.7);
+}
+
+.bg-darkmode {
+  background: linear-gradient(180deg, #0a1628 0%, #111d35 50%, #1a2a48 100%);
+}
+
+/* ── Stars (for dark mode screenshot) ────────────────────────────── */
+
+.stars {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.star {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: #fff;
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: twinkle 3s ease-in-out infinite alternate;
+}
+
+.star:nth-child(odd) { animation-delay: -1.5s; }
+.star.large { width: 4px; height: 4px; opacity: 0.8; }
+
+@keyframes twinkle {
+  0% { opacity: 0.3; }
+  100% { opacity: 0.9; }
+}
+
+/* ── Glow behind device ──────────────────────────────────────────── */
+
+.device-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -40%);
+  width: 1000px;
+  height: 1000px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
+  z-index: 0;
+  pointer-events: none;
+}

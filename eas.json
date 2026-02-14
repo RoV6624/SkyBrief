@@ -6,25 +6,31 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "ios": {
+        "preInstall": "bash eas-build-pre-install.sh"
+      }
     },
     "preview": {
       "distribution": "internal",
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "preInstall": "bash eas-build-pre-install.sh"
       }
     },
     "testflight": {
       "distribution": "store",
       "ios": {
         "simulator": false,
-        "autoIncrement": true
+        "autoIncrement": true,
+        "preInstall": "bash eas-build-pre-install.sh"
       }
     },
     "production": {
       "distribution": "store",
       "ios": {
-        "autoIncrement": true
+        "autoIncrement": true,
+        "preInstall": "bash eas-build-pre-install.sh"
       }
     }
   },
