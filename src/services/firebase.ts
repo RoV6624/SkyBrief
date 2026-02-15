@@ -18,24 +18,41 @@ import { validateIcao } from "@/lib/validation/icao";
 import { validateFuelPrice, validateFboName } from "@/lib/validation/fuel-price";
 import { FUEL_PRICE_DEFAULTS } from "@/config/defaults";
 
+// ── Safe Auth Accessors ─────────────────────────────────────────────────────
+
+function getAuth(): ReturnType<typeof auth> | null {
+  try {
+    return auth();
+  } catch (e) {
+    console.error("[Firebase] Auth not available. Error:", e);
+    console.error("[Firebase] Auth module type:", typeof auth);
+    return null;
+  }
+}
+
+export function safeCurrentUser(): FirebaseAuthTypes.User | null {
+  return getAuth()?.currentUser ?? null;
+}
+
 // Initialize Google Sign-In
 // Web Client ID is loaded from environment variables for security
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
-if (GOOGLE_WEB_CLIENT_ID) {
-  GoogleSignin.configure({
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-  });
-} else {
-  console.warn(
-    "[Firebase] EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID not set — Google Sign-In disabled."
-  );
-}
+let googleSignInConfigured = false;
 
-export async function signInWithGoogle(): Promise<FirebaseAuthTypes.UserCredential> {
+async function ensureGoogleSignInConfigured(): Promise<void> {
+  if (googleSignInConfigured) return;
   if (!GOOGLE_WEB_CLIENT_ID) {
     throw new Error("Google Sign-In is not configured. Missing EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.");
   }
+  await GoogleSignin.configure({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+  });
+  googleSignInConfigured = true;
+}
+
+export async function signInWithGoogle(): Promise<FirebaseAuthTypes.UserCredential> {
+  await ensureGoogleSignInConfigured();
   await GoogleSignin.hasPlayServices();
   const signInResult = await GoogleSignin.signIn();
   const idToken = signInResult?.data?.idToken;
@@ -43,25 +60,33 @@ export async function signInWithGoogle(): Promise<FirebaseAuthTypes.UserCredenti
     throw new Error("Google Sign-In failed: no ID token");
   }
   const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-  return auth().signInWithCredential(googleCredential);
+  const a = getAuth();
+  if (!a) throw new Error("Firebase Auth is not available.");
+  return a.signInWithCredential(googleCredential);
 }
 
 export async function signInWithEmail(
   email: string,
   password: string
 ): Promise<FirebaseAuthTypes.UserCredential> {
-  return auth().signInWithEmailAndPassword(email, password);
+  const a = getAuth();
+  if (!a) throw new Error("Firebase Auth is not available.");
+  return a.signInWithEmailAndPassword(email, password);
 }
 
 export async function signUpWithEmail(
   email: string,
   password: string
 ): Promise<FirebaseAuthTypes.UserCredential> {
-  return auth().createUserWithEmailAndPassword(email, password);
+  const a = getAuth();
+  if (!a) throw new Error("Firebase Auth is not available.");
+  return a.createUserWithEmailAndPassword(email, password);
 }
 
 export async function resetPassword(email: string): Promise<void> {
-  return auth().sendPasswordResetEmail(email);
+  const a = getAuth();
+  if (!a) throw new Error("Firebase Auth is not available.");
+  return a.sendPasswordResetEmail(email);
 }
 
 export async function firebaseSignOut(): Promise<void> {
@@ -70,13 +95,87 @@ export async function firebaseSignOut(): Promise<void> {
   } catch {
     // Google sign out may fail if user used email auth
   }
-  return auth().signOut();
+  const a = getAuth();
+  if (a) await a.signOut();
+}
+
+/**
+ * Delete the current user's account.
+ * 1. Deletes user profile from Firestore
+ * 2. Deletes Firebase Auth account
+ * Throws auth/requires-recent-login if the user hasn't authenticated recently.
+ */
+export async function deleteAccount(): Promise<void> {
+  const currentUser = safeCurrentUser();
+  if (!currentUser) {
+    throw new Error("No authenticated user found.");
+  }
+
+  // Delete Firestore user profile
+  if (PROJECT_ID) {
+    try {
+      const idToken = await currentUser.getIdToken();
+      const docUrl = `${FIRESTORE_API_URL}/users/${currentUser.uid}`;
+      await fetch(docUrl, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+    } catch (e) {
+      console.warn("[Firebase] Failed to delete Firestore profile:", e);
+    }
+  }
+
+  // Delete Firebase Auth account
+  await currentUser.delete();
+}
+
+/**
+ * Re-authenticate with email/password before sensitive operations (e.g., account deletion).
+ */
+export async function reauthenticateWithEmail(password: string): Promise<void> {
+  const currentUser = safeCurrentUser();
+  if (!currentUser || !currentUser.email) {
+    throw new Error("No authenticated email user found.");
+  }
+  const credential = auth.EmailAuthProvider.credential(
+    currentUser.email,
+    password
+  );
+  await currentUser.reauthenticateWithCredential(credential);
+}
+
+/**
+ * Re-authenticate with Google before sensitive operations (e.g., account deletion).
+ */
+export async function reauthenticateWithGoogle(): Promise<void> {
+  if (!GOOGLE_WEB_CLIENT_ID) {
+    throw new Error("Google Sign-In is not configured.");
+  }
+  const signInResult = await GoogleSignin.signIn();
+  const idToken = signInResult?.data?.idToken;
+  if (!idToken) {
+    throw new Error("Google re-authentication failed: no ID token");
+  }
+  const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+  const currentUser = safeCurrentUser();
+  if (!currentUser) {
+    throw new Error("No authenticated user found.");
+  }
+  await currentUser.reauthenticateWithCredential(googleCredential);
 }
 
 export function onAuthStateChanged(
   callback: (user: FirebaseAuthTypes.User | null) => void
 ) {
-  return auth().onAuthStateChanged(callback);
+  try {
+    return auth().onAuthStateChanged(callback);
+  } catch (e) {
+    console.warn("[Firebase] Auth not available (missing GoogleService-Info.plist?) — running without auth.", e);
+    // Immediately report no user so the app can continue unauthenticated
+    callback(null);
+    // Return a no-op unsubscribe function
+    return () => {};
+  }
 }
 
 /**
@@ -88,7 +187,7 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string
 ): Promise<void> {
-  const currentUser = auth().currentUser;
+  const currentUser = safeCurrentUser();
   if (!currentUser || !currentUser.email) {
     throw new Error("No authenticated email user found.");
   }
@@ -270,7 +369,7 @@ export async function submitFuelPrice(
 
   try {
     // Get Firebase Auth ID token for authentication
-    const currentUser = auth().currentUser;
+    const currentUser = safeCurrentUser();
     if (!currentUser) {
       throw new Error("User not authenticated");
     }
@@ -333,7 +432,7 @@ export async function submitFuelPriceReport(
   validateFuelPriceInput(icao, price, fboName, uid);
 
   try {
-    const currentUser = auth().currentUser;
+    const currentUser = safeCurrentUser();
     if (!currentUser) {
       throw new Error("User not authenticated");
     }
@@ -441,7 +540,7 @@ export async function upvoteFuelReport(
   uid: string
 ): Promise<void> {
   try {
-    const currentUser = auth().currentUser;
+    const currentUser = safeCurrentUser();
     if (!currentUser) {
       throw new Error("User not authenticated");
     }
@@ -507,7 +606,7 @@ export async function flagFuelReport(
   uid: string
 ): Promise<void> {
   try {
-    const currentUser = auth().currentUser;
+    const currentUser = safeCurrentUser();
     if (!currentUser) {
       throw new Error("User not authenticated");
     }
@@ -585,7 +684,7 @@ function generateFirestoreId(): string {
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   try {
     // Get Firebase Auth ID token for authentication
-    const currentUser = auth().currentUser;
+    const currentUser = safeCurrentUser();
     if (!currentUser) {
       console.log("[Firestore] No authenticated user for profile fetch");
       return null;
@@ -637,7 +736,7 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
  */
 export async function saveUserProfile(profile: Partial<UserProfile> & { uid: string }): Promise<void> {
   try {
-    const currentUser = auth().currentUser;
+    const currentUser = safeCurrentUser();
     if (!currentUser) {
       throw new Error("User not authenticated");
     }

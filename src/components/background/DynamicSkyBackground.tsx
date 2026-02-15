@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from "react";
-import { View, StyleSheet, Dimensions } from "react-native";
+import { View, StyleSheet, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
@@ -11,8 +11,6 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import type { WeatherScene } from "@/lib/weather/scene-mapper";
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface DynamicSkyBackgroundProps {
   scene: WeatherScene;
@@ -26,6 +24,7 @@ function CloudShape({
   opacity,
   speed,
   isNight,
+  screenWidth,
 }: {
   x: number;
   y: number;
@@ -33,13 +32,14 @@ function CloudShape({
   opacity: number;
   speed: number;
   isNight: boolean;
+  screenWidth: number;
 }) {
   const translateX = useSharedValue(x);
 
   useEffect(() => {
     translateX.value = withRepeat(
       withSequence(
-        withTiming(SCREEN_WIDTH + 100, {
+        withTiming(screenWidth + 100, {
           duration: speed * 1000,
           easing: Easing.linear,
         }),
@@ -47,7 +47,7 @@ function CloudShape({
       ),
       -1
     );
-  }, [speed, translateX]);
+  }, [speed, translateX, screenWidth]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
@@ -106,7 +106,7 @@ function CloudShape({
 }
 
 // Rain drop with continuous fall animation
-function RainDrop({ delay: dropDelay, isNight }: { delay: number; isNight: boolean }) {
+function RainDrop({ delay: dropDelay, isNight, screenWidth, screenHeight }: { delay: number; isNight: boolean; screenWidth: number; screenHeight: number }) {
   const y = useSharedValue(-20);
   const baseOpacity = 0.3 + Math.random() * 0.4;
 
@@ -114,14 +114,14 @@ function RainDrop({ delay: dropDelay, isNight }: { delay: number; isNight: boole
     y.value = withDelay(
       dropDelay,
       withRepeat(
-        withTiming(SCREEN_HEIGHT + 20, {
+        withTiming(screenHeight + 20, {
           duration: 800 + Math.random() * 400,
           easing: Easing.linear,
         }),
         -1
       )
     );
-  }, [y, dropDelay]);
+  }, [y, dropDelay, screenHeight]);
 
   const style = useAnimatedStyle(() => ({
     transform: [{ translateY: y.value }],
@@ -136,7 +136,7 @@ function RainDrop({ delay: dropDelay, isNight }: { delay: number; isNight: boole
       style={[
         {
           position: "absolute",
-          left: Math.random() * SCREEN_WIDTH,
+          left: Math.random() * screenWidth,
           width: 1.5,
           height: 16,
           backgroundColor: dropColor,
@@ -149,7 +149,7 @@ function RainDrop({ delay: dropDelay, isNight }: { delay: number; isNight: boole
 }
 
 // Snow flake with drift animation
-function SnowFlake({ delay: flakeDelay }: { delay: number }) {
+function SnowFlake({ delay: flakeDelay, screenWidth, screenHeight }: { delay: number; screenWidth: number; screenHeight: number }) {
   const y = useSharedValue(-10);
   const x = useSharedValue(0);
 
@@ -157,7 +157,7 @@ function SnowFlake({ delay: flakeDelay }: { delay: number }) {
     y.value = withDelay(
       flakeDelay,
       withRepeat(
-        withTiming(SCREEN_HEIGHT + 10, {
+        withTiming(screenHeight + 10, {
           duration: 4000 + Math.random() * 3000,
           easing: Easing.linear,
         }),
@@ -171,7 +171,7 @@ function SnowFlake({ delay: flakeDelay }: { delay: number }) {
       ),
       -1
     );
-  }, [y, x, flakeDelay]);
+  }, [y, x, flakeDelay, screenHeight]);
 
   const style = useAnimatedStyle(() => ({
     transform: [{ translateY: y.value }, { translateX: x.value }],
@@ -182,7 +182,7 @@ function SnowFlake({ delay: flakeDelay }: { delay: number }) {
       style={[
         {
           position: "absolute",
-          left: Math.random() * SCREEN_WIDTH,
+          left: Math.random() * screenWidth,
           width: 4,
           height: 4,
           borderRadius: 2,
@@ -261,16 +261,16 @@ function MistOverlay({ isNight }: { isNight: boolean }) {
 }
 
 // Star field for clear nights — twinkling dots
-function StarField() {
+function StarField({ screenWidth, screenHeight }: { screenWidth: number; screenHeight: number }) {
   const stars = useMemo(
     () =>
       Array.from({ length: 30 }, () => ({
-        x: Math.random() * SCREEN_WIDTH,
-        y: Math.random() * SCREEN_HEIGHT * 0.6,
+        x: Math.random() * screenWidth,
+        y: Math.random() * screenHeight * 0.6,
         size: 1 + Math.random() * 2,
         opacity: 0.3 + Math.random() * 0.5,
       })),
-    []
+    [screenWidth, screenHeight]
   );
 
   const twinkle = useSharedValue(1);
@@ -313,6 +313,7 @@ function StarField() {
 }
 
 export function DynamicSkyBackground({ scene }: DynamicSkyBackgroundProps) {
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const rainDrops = scene.precipitation === "rain" ? 30 : 0;
   const snowFlakes = scene.precipitation === "snow" ? 20 : 0;
   const isNight = scene.isNight ?? false;
@@ -327,31 +328,32 @@ export function DynamicSkyBackground({ scene }: DynamicSkyBackgroundProps) {
       />
 
       {/* Stars for clear nights */}
-      {showStars && <StarField />}
+      {showStars && <StarField screenWidth={screenWidth} screenHeight={screenHeight} />}
 
       {/* Cloud layers */}
       {scene.cloudLayers.map((cloud, i) => (
         <CloudShape
           key={`cloud-${i}`}
-          x={-200 + Math.random() * SCREEN_WIDTH}
-          y={(cloud.y / 100) * SCREEN_HEIGHT}
+          x={-200 + Math.random() * screenWidth}
+          y={(cloud.y / 100) * screenHeight}
           size={cloud.size}
           opacity={cloud.opacity}
           speed={cloud.speed}
           isNight={isNight}
+          screenWidth={screenWidth}
         />
       ))}
 
       {/* Rain */}
       {rainDrops > 0 &&
         Array.from({ length: rainDrops }, (_, i) => (
-          <RainDrop key={`rain-${i}`} delay={i * 60} isNight={isNight} />
+          <RainDrop key={`rain-${i}`} delay={i * 60} isNight={isNight} screenWidth={screenWidth} screenHeight={screenHeight} />
         ))}
 
       {/* Snow */}
       {snowFlakes > 0 &&
         Array.from({ length: snowFlakes }, (_, i) => (
-          <SnowFlake key={`snow-${i}`} delay={i * 200} />
+          <SnowFlake key={`snow-${i}`} delay={i * 200} screenWidth={screenWidth} screenHeight={screenHeight} />
         ))}
 
       {/* Mist */}

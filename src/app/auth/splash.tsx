@@ -124,6 +124,7 @@ const styles = StyleSheet.create({
   },
   features: {
     width: "100%",
+    maxWidth: 500,
     marginBottom: 48,
     gap: 12,
   },
@@ -145,6 +146,7 @@ const styles = StyleSheet.create({
   },
   ctaContainer: {
     width: "100%",
+    maxWidth: 500,
   },
   ctaButton: {
     backgroundColor: "#ffffff",

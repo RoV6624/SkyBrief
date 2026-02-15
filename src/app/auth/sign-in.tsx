@@ -218,6 +218,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingTop: 60,
     paddingBottom: 40,
+    maxWidth: 500,
+    width: "100%",
+    alignSelf: "center",
   },
   backButton: {
     position: "absolute",

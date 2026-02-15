@@ -17,8 +17,10 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      detachInactiveScreens={false}
       screenOptions={{
         headerShown: false,
+        sceneStyle: { backgroundColor: "transparent" },
         tabBarActiveTintColor: theme.tabBar.active,
         tabBarInactiveTintColor: theme.tabBar.inactive,
         tabBarLabelStyle: {

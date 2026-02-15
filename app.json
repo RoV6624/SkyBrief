@@ -14,9 +14,9 @@
       "backgroundColor": "#e8f4f8"
     },
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "com.skybrief.app",
-      "buildNumber": "8",
+      "buildNumber": "9",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "SkyBrief uses your location to find nearby weather stations.",

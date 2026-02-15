@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1, zIndex: 1 },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16 },
+  scrollContent: { paddingHorizontal: 16, maxWidth: 500, width: "100%", alignSelf: "center" },
   header: {
     paddingTop: 12,
     marginBottom: 16,

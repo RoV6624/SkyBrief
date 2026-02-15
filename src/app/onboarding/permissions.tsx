@@ -168,6 +168,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingTop: 80,
     paddingBottom: 40,
+    maxWidth: 500,
+    width: "100%",
+    alignSelf: "center",
   },
   step: { marginBottom: 24 },
   stepText: {

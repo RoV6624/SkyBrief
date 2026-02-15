@@ -63,6 +63,9 @@ tmux-*.log
 # Build artifacts
 .next/
 coverage/
+build/
+build-release/
+build-test/
 "ios 2/"
 
 # Claude Code internal

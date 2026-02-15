@@ -47,6 +47,10 @@ import {
   firebaseSignOut,
   resetPassword,
   changePassword,
+  deleteAccount,
+  reauthenticateWithEmail,
+  reauthenticateWithGoogle,
+  safeCurrentUser,
 } from "@/services/firebase";
 import { CloudCard } from "@/components/ui/CloudCard";
 import { CustomAircraftModal } from "@/components/aircraft/CustomAircraftModal";
@@ -95,6 +99,9 @@ export default function SettingsScreen() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
+  // ── Delete Account state ──────────────────────────────────────────────────
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   // ── Home Airport Display state ─────────────────────────────────────────────
   const [homeAirportName, setHomeAirportName] = useState<string>("");
   const [homeAirportAliases, setHomeAirportAliases] = useState<string[]>([]);
@@ -125,34 +132,76 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleResetApp = () => {
+  const handleDeleteAccount = () => {
     Alert.alert(
-      "Reset App",
-      "This will clear all data and reset the app to first launch. Use this to test the onboarding flow.",
+      "Delete Account",
+      "This will permanently delete your account and all associated data. This action cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Reset",
+          text: "Delete",
           style: "destructive",
           onPress: async () => {
+            setDeleteLoading(true);
             try {
-              // Try to sign out from Firebase (ignore errors if no user)
-              try {
-                await firebaseSignOut();
-              } catch (e) {
-                // Ignore - user might not be signed in to Firebase
-              }
-              // Clear all MMKV storage
+              await deleteAccount();
+              // Clear local storage and sign out
               storage.clearAll();
-              // Reset all stores
               authSignOut();
-              Alert.alert(
-                "App Reset Complete",
-                "Force close the app and reopen it to see the welcome screen.",
-                [{ text: "OK" }]
-              );
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error: any) {
-              Alert.alert("Error", error.message || "Could not reset app.");
+              if (error.code === "auth/requires-recent-login") {
+                // Need re-authentication
+                const currentUser = safeCurrentUser();
+                const isGoogleUser = currentUser?.providerData?.some(
+                  (p) => p.providerId === "google.com"
+                );
+                if (isGoogleUser) {
+                  // Re-auth with Google then retry
+                  try {
+                    await reauthenticateWithGoogle();
+                    await deleteAccount();
+                    storage.clearAll();
+                    authSignOut();
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  } catch (reAuthError: any) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                    Alert.alert("Error", reAuthError.message || "Could not delete account.");
+                  }
+                } else {
+                  // Prompt for password
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                  Alert.prompt(
+                    "Re-authenticate",
+                    "Please enter your password to confirm account deletion.",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Confirm",
+                        style: "destructive",
+                        onPress: async (password) => {
+                          if (!password) return;
+                          try {
+                            await reauthenticateWithEmail(password);
+                            await deleteAccount();
+                            storage.clearAll();
+                            authSignOut();
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          } catch (e: any) {
+                            Alert.alert("Error", e.message || "Could not delete account.");
+                          }
+                        },
+                      },
+                    ],
+                    "secure-text"
+                  );
+                }
+              } else {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert("Error", error.message || "Could not delete account.");
+              }
+            } finally {
+              setDeleteLoading(false);
             }
           },
         },
@@ -856,21 +905,23 @@ export default function SettingsScreen() {
             </Pressable>
           </Animated.View>
 
-          {/* Reset App (Development) */}
-          {__DEV__ && (
-            <Animated.View entering={FadeInDown.delay(350)} style={styles.gap}>
-              <Pressable
-                onPress={handleResetApp}
-                style={({ pressed }) => [
-                  styles.resetBtn,
-                  pressed && { opacity: 0.8 },
-                ]}
-              >
-                <Trash2 size={18} color={colors.alert.amber} />
-                <Text style={styles.resetText}>Reset App (Dev Only)</Text>
-              </Pressable>
-            </Animated.View>
-          )}
+          {/* Delete Account */}
+          <Animated.View entering={FadeInDown.delay(350)} style={styles.gap}>
+            <Pressable
+              onPress={handleDeleteAccount}
+              disabled={deleteLoading}
+              style={({ pressed }) => [
+                styles.deleteBtn,
+                pressed && { opacity: 0.8 },
+                deleteLoading && { opacity: 0.6 },
+              ]}
+            >
+              <Trash2 size={18} color={colors.alert.red} />
+              <Text style={styles.deleteText}>
+                {deleteLoading ? "Deleting..." : "Delete Account"}
+              </Text>
+            </Pressable>
+          </Animated.View>
 
           <View style={{ height: 100 }} />
         </ScrollView>
@@ -901,7 +952,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16 },
+  scrollContent: { paddingHorizontal: 16, maxWidth: 500, width: "100%", alignSelf: "center" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -1211,21 +1262,21 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     color: colors.alert.red,
   },
-  resetBtn: {
+  deleteBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "rgba(245,158,11,0.08)",
+    backgroundColor: "rgba(239,68,68,0.04)",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(245,158,11,0.15)",
+    borderColor: "rgba(239,68,68,0.1)",
     paddingVertical: 14,
   },
-  resetText: {
+  deleteText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
-    color: colors.alert.amber,
+    color: colors.alert.red,
   },
   homeAirportCol: {
     flexDirection: 'column',
