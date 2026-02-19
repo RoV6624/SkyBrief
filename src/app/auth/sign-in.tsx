@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -22,6 +23,31 @@ import {
   resetPassword,
 } from "@/services/firebase";
 import { useAuthStore } from "@/stores/auth-store";
+
+function PasswordStrengthBar({ password }: { password: string }) {
+  if (password.length === 0) return null;
+  const color =
+    password.length >= 8 ? "#22c55e" : password.length >= 6 ? "#f59e0b" : "#ef4444";
+  const width = password.length >= 8 ? "100%" : password.length >= 6 ? "66%" : "33%";
+  return (
+    <View style={strengthStyles.track}>
+      <View style={[strengthStyles.fill, { width, backgroundColor: color }]} />
+    </View>
+  );
+}
+
+const strengthStyles = StyleSheet.create({
+  track: {
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    marginTop: 6,
+  },
+  fill: {
+    height: "100%",
+    borderRadius: 1.5,
+  },
+});
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -91,7 +117,7 @@ export default function SignInScreen() {
 
   return (
     <LinearGradient
-      colors={["#1e90ff", "#87ceeb", "#e0efff"]}
+      colors={["#1e90ff", "#87ceeb", "#b0d4f1"]}
       style={styles.container}
     >
       <KeyboardAvoidingView
@@ -122,6 +148,42 @@ export default function SignInScreen() {
             <Text style={styles.logoText}>SkyBrief</Text>
           </Animated.View>
 
+          {/* Segmented Auth Toggle */}
+          <Animated.View entering={FadeInDown.delay(150)} style={styles.segmentContainer}>
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                setIsSignUp(false);
+              }}
+              style={[styles.segmentBtn, !isSignUp && styles.segmentBtnActive]}
+            >
+              <Text
+                style={[
+                  styles.segmentText,
+                  !isSignUp && styles.segmentTextActive,
+                ]}
+              >
+                Sign In
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                setIsSignUp(true);
+              }}
+              style={[styles.segmentBtn, isSignUp && styles.segmentBtnActive]}
+            >
+              <Text
+                style={[
+                  styles.segmentText,
+                  isSignUp && styles.segmentTextActive,
+                ]}
+              >
+                Create Account
+              </Text>
+            </Pressable>
+          </Animated.View>
+
           {/* Title */}
           <Animated.View entering={FadeInDown.delay(200)}>
             <Text style={styles.title}>
@@ -134,7 +196,7 @@ export default function SignInScreen() {
             </Text>
           </Animated.View>
 
-          {/* Email/Password Sign-In */}
+          {/* Email/Password Form */}
           <Animated.View entering={FadeInDown.delay(300)} style={styles.form}>
             {/* Email */}
             <View style={styles.inputContainer}>
@@ -152,16 +214,19 @@ export default function SignInScreen() {
             </View>
 
             {/* Password */}
-            <View style={styles.inputContainer}>
-              <Lock size={18} color="rgba(255,255,255,0.6)" />
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Password"
-                placeholderTextColor="rgba(255,255,255,0.4)"
-                secureTextEntry
-                style={styles.input}
-              />
+            <View>
+              <View style={styles.inputContainer}>
+                <Lock size={18} color="rgba(255,255,255,0.6)" />
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Password"
+                  placeholderTextColor="rgba(255,255,255,0.4)"
+                  secureTextEntry
+                  style={styles.input}
+                />
+              </View>
+              {isSignUp && <PasswordStrengthBar password={password} />}
             </View>
 
             {/* Submit */}
@@ -174,13 +239,13 @@ export default function SignInScreen() {
                 loading && { opacity: 0.6 },
               ]}
             >
-              <Text style={styles.submitText}>
-                {loading
-                  ? "..."
-                  : isSignUp
-                  ? "Create Account"
-                  : "Sign In"}
-              </Text>
+              {loading ? (
+                <ActivityIndicator size="small" color="#1e90ff" />
+              ) : (
+                <Text style={styles.submitText}>
+                  {isSignUp ? "Create Account" : "Sign In"}
+                </Text>
+              )}
             </Pressable>
 
             {/* Forgot password */}
@@ -190,18 +255,25 @@ export default function SignInScreen() {
               </Pressable>
             )}
 
-            {/* Toggle sign up / sign in */}
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Google Sign-In */}
             <Pressable
-              onPress={() => {
-                Haptics.selectionAsync();
-                setIsSignUp(!isSignUp);
-              }}
+              onPress={handleGoogleSignIn}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.googleButton,
+                pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
+                loading && { opacity: 0.6 },
+              ]}
             >
-              <Text style={styles.linkText}>
-                {isSignUp
-                  ? "Already have an account? Sign In"
-                  : "Don't have an account? Sign Up"}
-              </Text>
+              <LogIn size={18} color="#ffffff" />
+              <Text style={styles.googleText}>Continue with Google</Text>
             </Pressable>
           </Animated.View>
         </ScrollView>
@@ -232,13 +304,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginBottom: 32,
+    marginBottom: 24,
     alignSelf: "center",
   },
   logoText: {
     fontSize: 22,
     fontFamily: "Inter_700Bold",
     color: "#ffffff",
+  },
+  segmentContainer: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 12,
+    padding: 3,
+    marginBottom: 24,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  segmentBtnActive: {
+    backgroundColor: "rgba(255,255,255,0.95)",
+  },
+  segmentText: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.6)",
+  },
+  segmentTextActive: {
+    color: "#1e90ff",
   },
   title: {
     fontSize: 28,
@@ -251,7 +347,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.7)",
-    marginBottom: 32,
+    marginBottom: 24,
     textAlign: "center",
   },
   form: {
@@ -293,5 +389,37 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.7)",
     textAlign: "center",
     marginTop: 4,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginVertical: 4,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  dividerText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.5)",
+  },
+  googleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    paddingVertical: 14,
+  },
+  googleText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: "#ffffff",
   },
 });

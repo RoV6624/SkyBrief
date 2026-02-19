@@ -15,5 +15,11 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
     "nativewind-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "ios",
+    "ios 2",
+    "src/components/weather/FuelPriceCard 2.tsx"
   ]
 }

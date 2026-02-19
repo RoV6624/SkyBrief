@@ -161,8 +161,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   categoryText: {
-    fontSize: 9,
-    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    fontFamily: "SpaceGrotesk_700Bold",
     color: "#ffffff",
     letterSpacing: 0.5,
   },

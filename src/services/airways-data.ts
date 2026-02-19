@@ -193,6 +193,72 @@ class AirwaysDataService {
 
     return results;
   }
+
+  /**
+   * Build an adjacency graph from all airways for multi-airway pathfinding.
+   * Nodes are fix identifiers; edges connect consecutive fixes on the same airway.
+   * Each edge has a distance (nm) and the airway ID.
+   */
+  buildGraph(): Map<string, Array<{ to: string; distance: number; airway: string; lat: number; lon: number; toLat: number; toLon: number }>> {
+    const graph = new Map<string, Array<{ to: string; distance: number; airway: string; lat: number; lon: number; toLat: number; toLon: number }>>();
+
+    for (const airway of this.airways.values()) {
+      const segs = airway.segments;
+      for (let i = 0; i < segs.length - 1; i++) {
+        const from = segs[i];
+        const to = segs[i + 1];
+        const dist = haversineDistance(
+          from.latitude_deg,
+          from.longitude_deg,
+          to.latitude_deg,
+          to.longitude_deg
+        );
+
+        // Add edge in both directions (Victor airways are bidirectional)
+        if (!graph.has(from.fix_identifier)) {
+          graph.set(from.fix_identifier, []);
+        }
+        graph.get(from.fix_identifier)!.push({
+          to: to.fix_identifier,
+          distance: dist,
+          airway: airway.id,
+          lat: from.latitude_deg,
+          lon: from.longitude_deg,
+          toLat: to.latitude_deg,
+          toLon: to.longitude_deg,
+        });
+
+        if (!graph.has(to.fix_identifier)) {
+          graph.set(to.fix_identifier, []);
+        }
+        graph.get(to.fix_identifier)!.push({
+          to: from.fix_identifier,
+          distance: dist,
+          airway: airway.id,
+          lat: to.latitude_deg,
+          lon: to.longitude_deg,
+          toLat: from.latitude_deg,
+          toLon: from.longitude_deg,
+        });
+      }
+    }
+
+    return graph;
+  }
+
+  /**
+   * Get coordinates for a fix identifier from any airway
+   */
+  getFixCoords(fixId: string): { lat: number; lon: number } | null {
+    const id = fixId.toUpperCase();
+    for (const airway of this.airways.values()) {
+      const seg = airway.segments.find(s => s.fix_identifier === id);
+      if (seg) {
+        return { lat: seg.latitude_deg, lon: seg.longitude_deg };
+      }
+    }
+    return null;
+  }
 }
 
 // Export singleton instance

@@ -46,7 +46,7 @@ export function WeatherSummaryCard({ metar }: WeatherSummaryCardProps) {
   const dynamicStyles = {
     stationId: {
       fontSize: 22,
-      fontFamily: "Inter_700Bold" as const,
+      fontFamily: "SpaceGrotesk_700Bold" as const,
       color: theme.foreground,
     },
     stationName: {
@@ -57,7 +57,7 @@ export function WeatherSummaryCard({ metar }: WeatherSummaryCardProps) {
     },
     gridLabelText: {
       fontSize: 10,
-      fontFamily: "Inter_600SemiBold" as const,
+      fontFamily: "SpaceGrotesk_600SemiBold" as const,
       color: isDark ? theme.mutedForeground : colors.stratus[300],
       textTransform: "uppercase" as const,
       letterSpacing: 0.5,
@@ -71,7 +71,7 @@ export function WeatherSummaryCard({ metar }: WeatherSummaryCardProps) {
 
   return (
     <Animated.View entering={FadeInDown.delay(100)}>
-      <CloudCard>
+      <CloudCard style={{ borderLeftWidth: 4, borderLeftColor: categoryColor }}>
         {/* Header */}
         <View style={styles.header}>
           <View>
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
   },
   speciText: {
     fontSize: 10,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     color: colors.alert.amber,
     letterSpacing: 0.5,
   },
@@ -227,8 +227,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   fogText: {
-    fontSize: 9,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: 10,
+    fontFamily: "SpaceGrotesk_600SemiBold",
     color: colors.alert.amber,
   },
   altRow: {

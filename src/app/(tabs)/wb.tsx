@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import { ScrollView, View, Text, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -18,8 +18,11 @@ import { WeightBalanceForm } from "@/components/wb/WeightBalanceForm";
 import { CGEnvelopeGraph } from "@/components/wb/CGEnvelopeGraph";
 import { WBAlerts } from "@/components/wb/WBAlerts";
 import { PerformancePanel } from "@/components/wb/PerformancePanel";
+import { useContentWidth } from "@/hooks/useContentWidth";
+import { trackEvent } from "@/services/analytics";
 
 export default function WBScreen() {
+  const contentWidth = useContentWidth();
   const { scene } = useSceneStore();
 
   const {
@@ -46,6 +49,17 @@ export default function WBScreen() {
     return calcLandingWB(takeoff, estimatedFuelBurn, aircraft);
   }, [showLanding, estimatedFuelBurn, takeoff, aircraft]);
 
+  // Track W&B calculation when user modifies inputs
+  const wbTrackedRef = useRef(false);
+  useEffect(() => {
+    // Track once per session when user has filled in some data
+    const hasData = stationWeights.some((w) => w > 0) || fuelGallons > 0;
+    if (hasData && !wbTrackedRef.current) {
+      wbTrackedRef.current = true;
+      trackEvent({ type: "wb_calculation" });
+    }
+  }, [stationWeights, fuelGallons]);
+
   const pa = calcPressureAlt(fieldElevation, altimeterSetting);
   const da = calcDensityAlt(pa, oat);
   const daSeverity = getDensityAltWarning(da);
@@ -56,7 +70,7 @@ export default function WBScreen() {
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, contentWidth ? { maxWidth: contentWidth } : undefined]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -118,7 +132,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     color: "#ffffff",
     textShadowColor: "rgba(0,0,0,0.15)",
     textShadowOffset: { width: 0, height: 2 },

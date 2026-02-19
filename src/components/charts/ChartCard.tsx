@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 14,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'SpaceGrotesk_700Bold',
     flex: 1,
   },
   description: {
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   badgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: 'JetBrainsMono_600SemiBold',
     color: colors.stratus[500],
   },
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   updateText: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: 'Inter_400Regular',
   },
 });

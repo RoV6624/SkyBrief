@@ -27,7 +27,7 @@ export function CloudCard({ children, style }: CloudCardProps) {
         ]}
       >
         <BlurView
-          intensity={60}
+          intensity={90}
           tint={isDark ? "dark" : "light"}
           style={[styles.blur, { backgroundColor: theme.card.bg }]}
         >
@@ -42,7 +42,7 @@ export function CloudCard({ children, style }: CloudCardProps) {
       style={[
         styles.container,
         {
-          backgroundColor: isDark ? "rgba(30,30,35,0.85)" : "rgba(255,255,255,0.85)",
+          backgroundColor: isDark ? "rgba(30,30,35,0.92)" : "rgba(255,255,255,0.88)",
           borderColor: theme.card.border,
           ...shadows.cloud,
           zIndex: 1,

@@ -29,7 +29,8 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ["Inter"],
+        sans: ["SpaceGrotesk"],
+        body: ["Inter"],
         mono: ["JetBrainsMono"],
       },
       borderRadius: {

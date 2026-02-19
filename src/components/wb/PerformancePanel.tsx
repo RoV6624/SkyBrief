@@ -37,7 +37,7 @@ export function PerformancePanel() {
     },
     headerText: {
       fontSize: 11,
-      fontFamily: "Inter_600SemiBold",
+      fontFamily: "SpaceGrotesk_600SemiBold",
       color: isDark ? theme.foreground : colors.stratus[700],
       textTransform: "uppercase",
       letterSpacing: 0.5,
@@ -55,8 +55,8 @@ export function PerformancePanel() {
       marginBottom: 4,
     },
     label: {
-      fontSize: 9,
-      fontFamily: "Inter_600SemiBold",
+      fontSize: 10,
+      fontFamily: "SpaceGrotesk_600SemiBold",
       color: isDark ? "rgba(255,255,255,0.6)" : colors.stratus[600],
       textTransform: "uppercase",
       marginBottom: 4,
@@ -95,8 +95,8 @@ export function PerformancePanel() {
       borderColor: "rgba(245,158,11,0.15)",
     },
     resultLabel: {
-      fontSize: 8,
-      fontFamily: "Inter_600SemiBold",
+      fontSize: 10,
+      fontFamily: "SpaceGrotesk_600SemiBold",
       color: isDark ? "rgba(255,255,255,0.5)" : colors.stratus[500],
       textTransform: "uppercase",
       marginBottom: 4,

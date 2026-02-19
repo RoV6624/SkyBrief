@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
@@ -13,12 +13,14 @@ import {
 } from "lucide-react-native";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMonitorStore } from "@/stores/monitor-store";
+import { StepProgressBar } from "@/components/onboarding/StepProgressBar";
 
 export default function PermissionsScreen() {
   const { completeOnboarding } = useAuthStore();
   const { setMinimumsEnabled } = useMonitorStore();
   const [locationGranted, setLocationGranted] = useState(false);
   const [notifGranted, setNotifGranted] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleLocationPermission = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -57,17 +59,49 @@ export default function PermissionsScreen() {
   const handleComplete = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setMinimumsEnabled(true);
-    await completeOnboarding();
+    setShowSuccess(true);
+    setTimeout(async () => {
+      await completeOnboarding();
+    }, 800);
   };
+
+  if (showSuccess) {
+    return (
+      <LinearGradient
+        colors={["#1e90ff", "#87ceeb", "#b0d4f1"]}
+        style={styles.container}
+      >
+        <View style={styles.successOverlay}>
+          <Animated.View entering={FadeIn.duration(300)} style={styles.successContent}>
+            <View style={styles.successCircle}>
+              <CheckCircle size={48} color="#22c55e" />
+            </View>
+            <Animated.Text
+              entering={FadeInDown.delay(200)}
+              style={styles.successTitle}
+            >
+              You're all set!
+            </Animated.Text>
+            <Animated.Text
+              entering={FadeInDown.delay(350)}
+              style={styles.successSubtitle}
+            >
+              Preparing your first briefing...
+            </Animated.Text>
+          </Animated.View>
+        </View>
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient
-      colors={["#1e90ff", "#87ceeb", "#e0efff"]}
+      colors={["#1e90ff", "#87ceeb", "#b0d4f1"]}
       style={styles.container}
     >
       <View style={styles.scroll}>
-        <Animated.View entering={FadeInDown.delay(100)} style={styles.step}>
-          <Text style={styles.stepText}>Step 4 of 4</Text>
+        <Animated.View entering={FadeInDown.delay(100)}>
+          <StepProgressBar currentStep={4} />
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200)}>
@@ -172,14 +206,6 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
-  step: { marginBottom: 24 },
-  stepText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    color: "rgba(255,255,255,0.5)",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
   title: {
     fontSize: 28,
     fontFamily: "Inter_700Bold",
@@ -258,5 +284,34 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.5)",
     textAlign: "center",
     marginTop: 12,
+  },
+  // Success overlay
+  successOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  successContent: {
+    alignItems: "center",
+    gap: 16,
+  },
+  successCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(34,197,94,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  successTitle: {
+    fontSize: 28,
+    fontFamily: "Inter_700Bold",
+    color: "#ffffff",
+  },
+  successSubtitle: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.7)",
   },
 });

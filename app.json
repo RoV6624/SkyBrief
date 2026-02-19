@@ -2,7 +2,7 @@
   "expo": {
     "name": "SkyBrief",
     "slug": "sky-brief",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "skybrief",
@@ -16,18 +16,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.skybrief.app",
-      "buildNumber": "9",
+      "buildNumber": "15",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "SkyBrief uses your location to find nearby weather stations.",
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSAppTransportSecurity": {
-          "NSExceptionDomains": {
-            "firestore.googleapis.com": {
-              "NSExceptionRequiresForwardSecrecy": false
-            }
-          }
-        }
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "plugins": [

@@ -9,12 +9,16 @@ export interface CloudLayer {
 }
 
 export interface WeatherScene {
-  gradient: [string, string, string]; // top, middle, bottom
+  gradient: [string, string, ...string[]]; // top → bottom color stops (3-5 stops)
   cloudLayers: CloudLayer[];
-  precipitation: "none" | "rain" | "snow" | "mist";
+  precipitation: "none" | "rain" | "snow" | "mist" | "hail";
+  precipIntensity: "light" | "moderate" | "heavy";
+  isFog: boolean;
   lightning: boolean;
   isVfr: boolean;
   isNight: boolean;
+  isTwilight: boolean;
+  twilightPhase: "none" | "sunrise" | "sunset";
 }
 
 // Default scene when no station is selected
@@ -25,9 +29,13 @@ export const DEFAULT_SCENE: WeatherScene = {
     { opacity: 0.1, speed: 60, y: 35, size: 0.8 },
   ],
   precipitation: "none",
+  precipIntensity: "moderate",
+  isFog: false,
   lightning: false,
   isVfr: true,
   isNight: false,
+  isTwilight: false,
+  twilightPhase: "none",
 };
 
 function getCloudCoverage(clouds: MetarCloud[]): {
@@ -100,20 +108,35 @@ function getCloudCoverage(clouds: MetarCloud[]): {
   return { maxCover, layers };
 }
 
-function hasPrecipitation(wxString?: string | null): "none" | "rain" | "snow" | "mist" {
-  if (!wxString) return "none";
+function parsePrecipitation(wxString?: string | null): {
+  type: "none" | "rain" | "snow" | "mist" | "hail";
+  intensity: "light" | "moderate" | "heavy";
+  isFog: boolean;
+} {
+  if (!wxString) return { type: "none", intensity: "moderate", isFog: false };
   const wx = wxString.toUpperCase();
 
-  if (wx.includes("SN") || wx.includes("SG") || wx.includes("IC") || wx.includes("PL")) {
-    return "snow";
+  // Determine intensity from prefix: +RA = heavy, -SN = light, RA = moderate
+  let intensity: "light" | "moderate" | "heavy" = "moderate";
+  if (wx.includes("+")) intensity = "heavy";
+  else if (wx.includes("-")) intensity = "light";
+
+  // Fog flag: only true for FG, not BR or HZ
+  const isFog = wx.includes("FG");
+
+  // Priority: hail > snow > rain > mist (most severe wins)
+  let type: "none" | "rain" | "snow" | "mist" | "hail" = "none";
+  if (wx.includes("GR") || wx.includes("GS")) {
+    type = "hail";
+  } else if (wx.includes("SN") || wx.includes("SG") || wx.includes("IC") || wx.includes("PL")) {
+    type = "snow";
+  } else if (wx.includes("RA") || wx.includes("DZ") || wx.includes("SH") || wx.includes("TS")) {
+    type = "rain";
+  } else if (isFog || wx.includes("BR") || wx.includes("HZ")) {
+    type = "mist";
   }
-  if (wx.includes("RA") || wx.includes("DZ") || wx.includes("SH") || wx.includes("TS")) {
-    return "rain";
-  }
-  if (wx.includes("FG") || wx.includes("BR") || wx.includes("HZ")) {
-    return "mist";
-  }
-  return "none";
+
+  return { type, intensity, isFog };
 }
 
 function hasLightning(wxString?: string | null): boolean {
@@ -121,86 +144,101 @@ function hasLightning(wxString?: string | null): boolean {
   return wxString.toUpperCase().includes("TS");
 }
 
-/**
- * Determine if it is currently nighttime at the station location.
- * Uses the NOAA solar calculator from sun-position.ts.
- */
-function isNightTime(lat: number, lon: number): boolean {
+interface TimeOfDay {
+  isNight: boolean;
+  isTwilight: boolean;
+  twilightPhase: "none" | "sunrise" | "sunset";
+}
+
+function getTimeOfDay(lat: number, lon: number): TimeOfDay {
   try {
     const now = new Date();
     const sunTimes = getSunTimes(lat, lon, now);
-    // Night = before civil twilight start OR after civil twilight end
-    return now < sunTimes.civilTwilightStart || now > sunTimes.civilTwilightEnd;
+
+    // Morning twilight: between civilTwilightStart and sunrise
+    if (now >= sunTimes.civilTwilightStart && now < sunTimes.sunrise) {
+      return { isNight: false, isTwilight: true, twilightPhase: "sunrise" };
+    }
+    // Evening twilight: between sunset and civilTwilightEnd
+    if (now > sunTimes.sunset && now <= sunTimes.civilTwilightEnd) {
+      return { isNight: false, isTwilight: true, twilightPhase: "sunset" };
+    }
+    // Night: before civil twilight start or after civil twilight end
+    if (now < sunTimes.civilTwilightStart || now > sunTimes.civilTwilightEnd) {
+      return { isNight: true, isTwilight: false, twilightPhase: "none" };
+    }
+    // Daytime
+    return { isNight: false, isTwilight: false, twilightPhase: "none" };
   } catch {
-    // Default to daytime if calculation fails
-    return false;
+    return { isNight: false, isTwilight: false, twilightPhase: "none" };
   }
 }
 
+// Twilight gradients
+const SUNRISE_GRADIENT: [string, string, ...string[]] = ["#1a1a3e", "#e8856a", "#ffd194"];
+const SUNSET_GRADIENT: [string, string, ...string[]] = ["#2d1b4e", "#c2544f", "#f4a261"];
+const SUNRISE_BKN_GRADIENT: [string, string, ...string[]] = ["#1a1a3e", "#b86b5a", "#d4a97a"];
+const SUNSET_BKN_GRADIENT: [string, string, ...string[]] = ["#2d1b4e", "#9c4440", "#c88550"];
+
 export function mapMetarToScene(metar: NormalizedMetar): WeatherScene {
   const { maxCover, layers } = getCloudCoverage(metar.clouds);
-  const precipitation = hasPrecipitation(metar.presentWeather);
+  const { type: precipitation, intensity: precipIntensity, isFog } = parsePrecipitation(metar.presentWeather);
   const lightning = hasLightning(metar.presentWeather);
   const isVfr = metar.flightCategory === "VFR";
-  const night = isNightTime(metar.location.lat, metar.location.lon);
+  const timeOfDay = getTimeOfDay(metar.location.lat, metar.location.lon);
 
   // Determine gradient based on conditions + time of day
-  let gradient: [string, string, string];
+  let gradient: [string, string, ...string[]];
 
-  if (night) {
-    // NIGHT GRADIENTS — deep navy/dark blue tones
-    if (lightning || (precipitation === "rain" && (maxCover === "BKN" || maxCover === "OVC"))) {
-      // Night storm — very dark with deep blue-gray
-      gradient = ["#0a0e1a", "#151c2e", "#1e2a42"];
-    } else if (precipitation === "rain") {
-      // Night rain — dark navy
-      gradient = ["#0d1117", "#161b28", "#1e2838"];
-    } else if (precipitation === "snow") {
-      // Night snow — dark silver-blue
-      gradient = ["#0f1520", "#1a2332", "#2a3444"];
-    } else if (precipitation === "mist" || metar.flightCategory === "LIFR") {
-      // Night fog — very dark murky gray
-      gradient = ["#0e1015", "#1a1e25", "#252a32"];
-    } else if (metar.flightCategory === "IFR") {
-      // Night IFR — dark overcast
-      gradient = ["#0d1118", "#182030", "#222e40"];
-    } else if (maxCover === "OVC" || maxCover === "BKN") {
-      // Night overcast/broken — dark blue-gray
-      gradient = ["#0f172a", "#1e293b", "#2d3a4f"];
+  if (timeOfDay.isTwilight && !lightning && precipitation === "none" && maxCover !== "OVC") {
+    // TWILIGHT GRADIENTS — warm orange/amber tones
+    if (maxCover === "BKN") {
+      gradient = timeOfDay.twilightPhase === "sunrise" ? SUNRISE_BKN_GRADIENT : SUNSET_BKN_GRADIENT;
     } else {
-      // Clear night — deep navy with stars feel
-      gradient = ["#0a1628", "#111d35", "#1a2a48"];
+      gradient = timeOfDay.twilightPhase === "sunrise" ? SUNRISE_GRADIENT : SUNSET_GRADIENT;
+    }
+  } else if (timeOfDay.isNight) {
+    // NIGHT GRADIENTS — rich luminous indigo (iOS Weather-inspired)
+    // Key: high blue channel saturation, never pure black, wide lightness range
+    if (lightning || precipitation === "hail" || (precipitation === "rain" && (maxCover === "BKN" || maxCover === "OVC"))) {
+      gradient = ["#0e0e28", "#161838", "#1e224a"];
+    } else if (precipitation === "rain") {
+      gradient = ["#101030", "#1a1c45", "#24285a"];
+    } else if (precipitation === "snow") {
+      gradient = ["#141642", "#1e2358", "#2c336e"];
+    } else if (precipitation === "mist" || metar.flightCategory === "LIFR") {
+      gradient = ["#0f1020", "#1a1b30", "#252840"];
+    } else if (metar.flightCategory === "IFR") {
+      gradient = ["#111438", "#1c2050", "#282e62"];
+    } else if (maxCover === "OVC" || maxCover === "BKN") {
+      gradient = ["#131545", "#1e225a", "#2a3070"];
+    } else {
+      // Clear night — 4-stop rich indigo with horizon glow
+      gradient = ["#101638", "#182054", "#24326e", "#2d3f80"];
     }
   } else {
     // DAY GRADIENTS (original logic)
-    if (lightning || (precipitation === "rain" && (maxCover === "BKN" || maxCover === "OVC"))) {
-      // Stormy — dark gray
+    if (lightning || precipitation === "hail" || (precipitation === "rain" && (maxCover === "BKN" || maxCover === "OVC"))) {
       gradient = ["#374151", "#4b5563", "#6b7280"];
     } else if (precipitation === "mist" || metar.flightCategory === "LIFR") {
-      // Fog/LIFR — white-gray
       gradient = ["#9ca3af", "#d1d5db", "#e5e7eb"];
     } else if (metar.flightCategory === "IFR") {
-      // IFR — overcast gray
       gradient = ["#64748b", "#94a3b8", "#cbd5e1"];
     } else if (maxCover === "OVC") {
-      // Full overcast — medium gray
       gradient = ["#78909c", "#b0bec5", "#cfd8dc"];
     } else if (maxCover === "BKN") {
-      // Broken — gray-blue mix
       gradient = ["#5b86a7", "#94b8d0", "#c8dce8"];
     } else if (maxCover === "SCT") {
-      // Scattered — slightly hazy blue
       gradient = ["#2196f3", "#7ec8e3", "#d4ecf7"];
     } else if (precipitation === "snow") {
-      // Snow — cold gray-white
       gradient = ["#78909c", "#b0bec5", "#eceff1"];
     } else {
-      // Clear/FEW — beautiful blue sky
       gradient = ["#1e90ff", "#87ceeb", "#e0efff"];
     }
   }
 
   // At night, reduce cloud opacity and darken cloud colors
+  const night = timeOfDay.isNight;
   const cloudLayers =
     layers.length > 0
       ? layers.map((l) => ({
@@ -215,8 +253,12 @@ export function mapMetarToScene(metar: NormalizedMetar): WeatherScene {
     gradient,
     cloudLayers,
     precipitation,
+    precipIntensity,
+    isFog,
     lightning,
     isVfr,
     isNight: night,
+    isTwilight: timeOfDay.isTwilight,
+    twilightPhase: timeOfDay.twilightPhase,
   };
 }

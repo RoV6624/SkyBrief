@@ -22,6 +22,7 @@ export const colors = {
     amber: "#f59e0b",
     red: "#ef4444",
   },
+  accent: "#D4A853",
 } as const;
 
 export interface ThemeColors {
@@ -39,7 +40,7 @@ export const lightTheme: ThemeColors = {
   background: "#ffffff",
   foreground: "#083f6e",
   card: {
-    bg: "rgba(255,255,255,0.6)",
+    bg: "rgba(255,255,255,0.82)",
     border: "rgba(255,255,255,0.4)",
   },
   ghost: {
@@ -56,7 +57,7 @@ export const lightTheme: ThemeColors = {
     bg: "rgba(255,255,255,0.85)",
     border: "rgba(12,140,233,0.1)",
     active: "#0c8ce9",
-    inactive: "#7cc4ff",
+    inactive: "#6b90b8",
   },
 };
 
@@ -66,7 +67,7 @@ export const darkTheme: ThemeColors = {
   background: "#121212",
   foreground: "#FFFFFF",
   card: {
-    bg: "rgba(30,30,35,0.85)",
+    bg: "rgba(30,30,35,0.92)",
     border: "rgba(255,255,255,0.08)",
   },
   ghost: {
@@ -83,7 +84,7 @@ export const darkTheme: ThemeColors = {
     bg: "rgba(18,18,18,0.95)",
     border: "rgba(255,255,255,0.06)",
     active: "#FFFFFF",
-    inactive: "#555566",
+    inactive: "#8888a0",
   },
 };
 
@@ -98,10 +99,10 @@ export const skyGradients = {
     storm: ["#1e293b", "#334155", "#475569"],
   },
   night: {
-    clear: ["#0a1628", "#111d35", "#1a2a48"],
-    cloudy: ["#0f172a", "#1e293b", "#2d3a4f"],
-    rain: ["#0d1117", "#161b28", "#1e2838"],
-    storm: ["#0a0e1a", "#151c2e", "#1e2a42"],
+    clear: ["#101638", "#182054", "#24326e", "#2d3f80"],
+    cloudy: ["#131545", "#1e225a", "#2a3070"],
+    rain: ["#101030", "#1a1c45", "#24285a"],
+    storm: ["#0e0e28", "#161838", "#1e224a"],
   },
 };
 

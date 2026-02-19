@@ -37,7 +37,7 @@ export function MetarRawDisplay({ rawText }: MetarRawDisplayProps) {
     },
     headerText: {
       fontSize: 11,
-      fontFamily: "Inter_600SemiBold",
+      fontFamily: "SpaceGrotesk_600SemiBold",
       color: isDark ? theme.foreground : colors.stratus[700],
       textTransform: "uppercase",
       letterSpacing: 0.5,
@@ -70,7 +70,7 @@ export function MetarRawDisplay({ rawText }: MetarRawDisplayProps) {
 
   return (
     <Animated.View entering={FadeInDown.delay(300)}>
-      <CloudCard>
+      <CloudCard style={{ padding: 16 }}>
         <Pressable
           onPress={() => {
             Haptics.selectionAsync();

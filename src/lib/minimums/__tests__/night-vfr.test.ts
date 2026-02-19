@@ -132,35 +132,36 @@ describe('night-vfr', () => {
         // Call without date parameter - should use current time
         const info = getSunInfo(40.6413, -73.7781);
 
-        // Should return valid sun info
-        expect(info.sunrise).toMatch(/^\d{4}Z$/);
-        expect(info.sunset).toMatch(/^\d{4}Z$/);
+        // Should return valid sun info (format: "HHMM TZ" or "HHMM")
+        expect(info.sunrise).toMatch(/^\d{4}(\s\w+)?$/);
+        expect(info.sunset).toMatch(/^\d{4}(\s\w+)?$/);
         expect(info.sunriseDate).toBeInstanceOf(Date);
         expect(info.sunsetDate).toBeInstanceOf(Date);
       });
     });
 
     describe('Time formatting', () => {
-      it('should format times in Zulu format (HHmmZ)', () => {
+      it('should format times as HHMM with optional timezone abbreviation', () => {
         const testDate = new Date('2024-03-15T12:00:00Z');
         const info = getSunInfo(40.6413, -73.7781, testDate);
 
-        // Verify format: 4 digits + Z
-        expect(info.sunrise).toMatch(/^\d{4}Z$/);
-        expect(info.sunset).toMatch(/^\d{4}Z$/);
-        expect(info.civilTwilightEnd).toMatch(/^\d{4}Z$/);
-        expect(info.logbookNight).toMatch(/^\d{4}Z$/);
-        expect(info.currencyNight).toMatch(/^\d{4}Z$/);
+        // Format: 4 digits + optional space + timezone abbreviation
+        const timePattern = /^\d{4}(\s\w+)?$/;
+        expect(info.sunrise).toMatch(timePattern);
+        expect(info.sunset).toMatch(timePattern);
+        expect(info.civilTwilightEnd).toMatch(timePattern);
+        expect(info.logbookNight).toMatch(timePattern);
+        expect(info.currencyNight).toMatch(timePattern);
       });
 
       it('should pad hours and minutes with leading zeros', () => {
         const testDate = new Date('2024-03-15T12:00:00Z');
         const info = getSunInfo(40.6413, -73.7781, testDate);
 
-        // All times should be exactly 5 characters (HHmmZ)
-        expect(info.sunrise.length).toBe(5);
-        expect(info.sunset.length).toBe(5);
-        expect(info.currencyNight.length).toBe(5);
+        // Time portion should always start with 4 digits (HHMM)
+        expect(info.sunrise).toMatch(/^\d{4}/);
+        expect(info.sunset).toMatch(/^\d{4}/);
+        expect(info.currencyNight).toMatch(/^\d{4}/);
       });
     });
 

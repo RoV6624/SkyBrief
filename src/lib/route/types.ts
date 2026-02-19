@@ -31,6 +31,16 @@ export interface RouteWeatherPoint {
   gapWarning?: string;
 }
 
+export interface ArrivalForecast {
+  station: string;
+  arrivalTime: number; // epoch seconds
+  visibility: string;
+  wind: string;
+  ceiling: number | null;
+  flightCategory: FlightCategory;
+  wxString?: string;
+}
+
 export interface RouteBriefing {
   legs: RouteLeg[];
   weatherPoints: RouteWeatherPoint[];

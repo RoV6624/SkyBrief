@@ -1,15 +1,53 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useEffect } from "react";
+import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { ShieldCheck, ChevronRight } from "lucide-react-native";
+import { ShieldCheck, ChevronRight, Zap } from "lucide-react-native";
 import { useMonitorStore } from "@/stores/monitor-store";
-// Using a custom stepper UI since @react-native-community/slider is not installed
+import { useUserStore } from "@/stores/user-store";
+import { StepProgressBar } from "@/components/onboarding/StepProgressBar";
+import type { PersonalMinimums } from "@/lib/minimums/types";
+
+const PRESETS: Record<string, PersonalMinimums> = {
+  student: { ceiling: 3500, visibility: 7, crosswind: 10, maxWind: 20, maxGust: 20 },
+  private: { ceiling: 3000, visibility: 5, crosswind: 15, maxWind: 25, maxGust: 25 },
+  commercial: { ceiling: 2000, visibility: 3, crosswind: 20, maxWind: 30, maxGust: 30 },
+  atp: { ceiling: 1000, visibility: 2, crosswind: 25, maxWind: 35, maxGust: 35 },
+};
+
+const LEVEL_LABELS: Record<string, string> = {
+  student: "Student",
+  private: "Private",
+  commercial: "Commercial",
+  atp: "ATP",
+};
 
 export default function MinimumsScreen() {
   const router = useRouter();
-  const { personalMinimums, setPersonalMinimum } = useMonitorStore();
+  const { personalMinimums, setPersonalMinimum, setMinimumsEnabled } =
+    useMonitorStore();
+  const { experienceLevel } = useUserStore();
+
+  const applyPreset = (level: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const preset = PRESETS[level];
+    if (!preset) return;
+    for (const [key, value] of Object.entries(preset)) {
+      setPersonalMinimum(key as keyof PersonalMinimums, value);
+    }
+  };
+
+  // Auto-apply presets on mount based on experience level
+  useEffect(() => {
+    const preset = PRESETS[experienceLevel];
+    if (preset) {
+      for (const [key, value] of Object.entries(preset)) {
+        setPersonalMinimum(key as keyof PersonalMinimums, value);
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sliders = [
     {
@@ -61,17 +99,21 @@ export default function MinimumsScreen() {
 
   const handleNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMinimumsEnabled(true);
     router.push("/onboarding/aircraft");
   };
 
   return (
     <LinearGradient
-      colors={["#1e90ff", "#87ceeb", "#e0efff"]}
+      colors={["#1e90ff", "#87ceeb", "#b0d4f1"]}
       style={styles.container}
     >
-      <View style={styles.scroll}>
-        <Animated.View entering={FadeInDown.delay(100)} style={styles.step}>
-          <Text style={styles.stepText}>Step 2 of 4</Text>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View entering={FadeInDown.delay(100)}>
+          <StepProgressBar currentStep={2} />
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200)}>
@@ -82,6 +124,16 @@ export default function MinimumsScreen() {
           <Text style={styles.subtitle}>
             Set your comfort limits. You can adjust these anytime in Settings.
           </Text>
+        </Animated.View>
+
+        {/* Experience Preset Banner */}
+        <Animated.View entering={FadeInDown.delay(250)}>
+          <Pressable onPress={() => applyPreset(experienceLevel)} style={styles.presetBanner}>
+            <Zap size={16} color="#f59e0b" />
+            <Text style={styles.presetText}>
+              Apply {LEVEL_LABELS[experienceLevel] || "Private"} Presets
+            </Text>
+          </Pressable>
         </Animated.View>
 
         {/* Sliders */}
@@ -106,7 +158,7 @@ export default function MinimumsScreen() {
                     }}
                     style={styles.stepBtn}
                   >
-                    <Text style={styles.stepBtnText}>−</Text>
+                    <Text style={styles.stepBtnText}>{"\u2212"}</Text>
                   </Pressable>
                   <View style={styles.barContainer}>
                     <View
@@ -148,7 +200,7 @@ export default function MinimumsScreen() {
             </Pressable>
           </Animated.View>
         </View>
-      </View>
+      </ScrollView>
     </LinearGradient>
   );
 }
@@ -156,21 +208,13 @@ export default function MinimumsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 32,
     paddingTop: 80,
     paddingBottom: 40,
     maxWidth: 500,
     width: "100%",
     alignSelf: "center",
-  },
-  step: { marginBottom: 24 },
-  stepText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    color: "rgba(255,255,255,0.5)",
-    textTransform: "uppercase",
-    letterSpacing: 1,
   },
   headerRow: {
     flexDirection: "row",
@@ -187,7 +231,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.7)",
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  presetBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(245,158,11,0.15)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.3)",
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  presetText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: "#f59e0b",
   },
   sliders: { gap: 12 },
   sliderCard: {

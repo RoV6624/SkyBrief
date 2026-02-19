@@ -16,6 +16,7 @@ import * as Haptics from "expo-haptics";
 import { User, Plane, ChevronRight } from "lucide-react-native";
 import { useUserStore } from "@/stores/user-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { StepProgressBar } from "@/components/onboarding/StepProgressBar";
 
 const EXPERIENCE_LEVELS = [
   { value: "student" as const, label: "Student Pilot", emoji: "📚" },
@@ -52,7 +53,7 @@ export default function ProfileScreen() {
 
   return (
     <LinearGradient
-      colors={["#1e90ff", "#87ceeb", "#e0efff"]}
+      colors={["#1e90ff", "#87ceeb", "#b0d4f1"]}
       style={styles.container}
     >
       <KeyboardAvoidingView
@@ -64,8 +65,8 @@ export default function ProfileScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Step indicator */}
-          <Animated.View entering={FadeInDown.delay(100)} style={styles.step}>
-            <Text style={styles.stepText}>Step 1 of 4</Text>
+          <Animated.View entering={FadeInDown.delay(100)}>
+            <StepProgressBar currentStep={1} />
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(200)}>
@@ -178,14 +179,6 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     width: "100%",
     alignSelf: "center",
-  },
-  step: { marginBottom: 24 },
-  stepText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    color: "rgba(255,255,255,0.5)",
-    textTransform: "uppercase",
-    letterSpacing: 1,
   },
   title: {
     fontSize: 28,

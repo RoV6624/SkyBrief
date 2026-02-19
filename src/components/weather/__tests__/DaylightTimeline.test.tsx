@@ -48,10 +48,10 @@ describe('DaylightTimeline', () => {
 
   describe('Component rendering', () => {
     it('should render without crashing', () => {
-      const { getByText } = render(<DaylightTimeline {...defaultProps} />);
+      const { getAllByText } = render(<DaylightTimeline {...defaultProps} />);
 
       // Component should render successfully
-      expect(getByText(/Daylight/)).toBeTruthy();
+      expect(getAllByText(/Daylight/)).toBeTruthy();
     });
 
     it('should render the component structure', () => {
@@ -91,7 +91,7 @@ describe('DaylightTimeline', () => {
       const { getAllByText } = render(<DaylightTimeline {...defaultProps} />);
 
       // Check for all legend labels
-      const legends = ['Night', 'Twilight', 'Day', 'Currency'];
+      const legends = ['Night', 'Twilight', 'Daylight', 'Landing Currency'];
 
       legends.forEach((label) => {
         const elements = getAllByText(label);
@@ -106,23 +106,23 @@ describe('DaylightTimeline', () => {
       // Verify each legend item exists
       expect(getByText('Night')).toBeTruthy();
       expect(getByText('Twilight')).toBeTruthy();
-      expect(getByText('Day')).toBeTruthy();
-      expect(getByText('Currency')).toBeTruthy();
+      expect(getByText('Daylight')).toBeTruthy();
+      expect(getByText('Landing Currency')).toBeTruthy();
     });
   });
 
   describe('Time chips display', () => {
-    it('should display Logbook Night chip', () => {
+    it('should display Night Logging chip', () => {
       const { getByText } = render(<DaylightTimeline {...defaultProps} />);
 
-      expect(getByText('Logbook Night')).toBeTruthy();
+      expect(getByText('Night Logging')).toBeTruthy();
       expect(getByText('0013Z')).toBeTruthy(); // Mocked value
     });
 
-    it('should display Currency Starts chip', () => {
+    it('should display Night Landings chip', () => {
       const { getByText } = render(<DaylightTimeline {...defaultProps} />);
 
-      expect(getByText('Currency Starts')).toBeTruthy();
+      expect(getByText('Night Landings')).toBeTruthy();
       expect(getByText('0045Z')).toBeTruthy(); // Mocked value
     });
   });
@@ -175,12 +175,12 @@ describe('DaylightTimeline', () => {
 
   describe('Accessibility', () => {
     it('should render text elements that are accessible', () => {
-      const { getByText } = render(<DaylightTimeline {...defaultProps} />);
+      const { getByText, getAllByText } = render(<DaylightTimeline {...defaultProps} />);
 
       // Key text elements should be findable
-      expect(getByText(/Daylight/)).toBeTruthy();
-      expect(getByText('Logbook Night')).toBeTruthy();
-      expect(getByText('Currency Starts')).toBeTruthy();
+      expect(getAllByText(/Daylight/).length).toBeGreaterThan(0);
+      expect(getByText('Night Logging')).toBeTruthy();
+      expect(getByText('Night Landings')).toBeTruthy();
     });
   });
 

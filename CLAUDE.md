@@ -52,9 +52,9 @@ eas build --profile preview --platform ios
 - Hooks: `useMetar`, `useTaf`, `useAlerts`, `useAiBriefing`
 
 ### AI Briefing
-- Claude API integration via `src/lib/ai/briefing-engine.ts`
-- Uses claude-3-5-haiku for weather summaries
-- Local fallback: `src/lib/ai/local-briefing.ts`
+- Local briefing engine: `src/lib/ai/local-briefing.ts` (rule-based, no external API)
+- Route briefing: `src/lib/ai/route-briefing.ts`
+- Hook: `useAiBriefing` in `src/hooks/`
 
 ### Firebase Auth
 - Google Sign-In + Email/Password auth

@@ -15,9 +15,12 @@ import { DynamicSkyBackground } from '@/components/background/DynamicSkyBackgrou
 import { useSceneStore } from '@/stores/scene-store';
 import { useTheme } from '@/theme/ThemeProvider';
 import { colors } from '@/theme/tokens';
+import { useContentWidth } from '@/hooks/useContentWidth';
+import { trackEvent } from '@/services/analytics';
 
 export default function ChartsScreen() {
   const { theme, isDark } = useTheme();
+  const contentWidth = useContentWidth();
   const { scene } = useSceneStore();
   const queryClient = useQueryClient();
   const { homeAirport } = useUserStore();
@@ -55,6 +58,13 @@ export default function ChartsScreen() {
     airportCoords?.lon ?? null
   );
 
+  // Track chart view when charts load
+  useEffect(() => {
+    if (charts.length > 0) {
+      trackEvent({ type: "chart_view" });
+    }
+  }, [charts.length > 0]);
+
   // Pull-to-refresh
   const onRefresh = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -70,7 +80,7 @@ export default function ChartsScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, contentWidth ? { maxWidth: contentWidth } : undefined]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -166,7 +176,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'SpaceGrotesk_700Bold',
     color: '#ffffff',
     textShadowColor: 'rgba(0,0,0,0.15)',
     textShadowOffset: { width: 0, height: 2 },
@@ -195,7 +205,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'SpaceGrotesk_600SemiBold',
   },
   emptyText: {
     fontSize: 14,

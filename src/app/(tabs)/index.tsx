@@ -10,7 +10,18 @@ import {
   Keyboard,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  FadeOut,
+  useSharedValue,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  interpolate,
+  Extrapolation,
+  runOnJS,
+} from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { Search, CloudSun } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,7 +39,9 @@ import { useAlerts } from "@/hooks/useAlerts";
 import { searchAirports } from "@/services/airport-data";
 import type { AirportData } from "@/lib/airport/types";
 
-import { WeatherSummaryCard } from "@/components/weather/WeatherSummaryCard";
+import { WeatherCards, StationHeader } from "@/components/briefing/WeatherCards";
+import { DataCard } from "@/components/briefing/DataCard";
+
 import { CloudLayerStack } from "@/components/weather/CloudLayerStack";
 import { DaylightTimeline } from "@/components/weather/DaylightTimeline";
 import { FuelPriceCardEnhanced as FuelPriceCard } from "@/components/weather/FuelPriceCardEnhanced";
@@ -38,7 +51,8 @@ import { AlertFeed } from "@/components/weather/AlertFeed";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { DynamicSkyBackground } from "@/components/background/DynamicSkyBackground";
 import { NotamSection } from "@/components/notam/NotamSection";
-import { RunwayVisualizer } from "@/components/runway/RunwayVisualizer";
+import { RunwayWindCard } from "@/components/runway/RunwayWindCard";
+import { useRunways } from "@/hooks/useRunways";
 import { PivotalAltitudeTable } from "@/components/weather/PivotalAltitudeTable";
 import { CloudCard } from "@/components/ui/CloudCard";
 
@@ -47,6 +61,26 @@ import { evaluateMinimums } from "@/lib/minimums/evaluate";
 import { findStationCoords } from "@/lib/route/station-coords";
 import { colors } from "@/theme/tokens";
 import { useTheme } from "@/theme/ThemeProvider";
+import { trackEvent } from "@/services/analytics";
+
+function formatObservationAge(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+
+  if (diffMin < 1) {
+    const hh = date.getUTCHours().toString().padStart(2, "0");
+    const mm = date.getUTCMinutes().toString().padStart(2, "0");
+    return `Weather observed at ${hh}:${mm}Z`;
+  }
+
+  if (diffMin < 60) return `Weather observed ${diffMin} min ago`;
+
+  const hrs = Math.floor(diffMin / 60);
+  const mins = diffMin % 60;
+  if (mins === 0) return `Weather observed ${hrs} hr ago`;
+  return `Weather observed ${hrs} hr ${mins} min ago`;
+}
 
 export default function BriefingScreen() {
   const { isDark, theme } = useTheme();
@@ -54,6 +88,8 @@ export default function BriefingScreen() {
   const [searchInput, setSearchInput] = useState("");
   const [searchResults, setSearchResults] = useState<AirportData[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchExpandedSV = useSharedValue(false);
   const hasAutoLoadedRef = useRef(false);
   const { user } = useAuthStore();
   const { homeAirport } = useUserStore();
@@ -62,12 +98,36 @@ export default function BriefingScreen() {
   const {
     thresholds,
     runwayHeading,
-    setRunwayHeading,
     personalMinimums,
     minimumsEnabled,
   } = useMonitorStore();
   const { scene, setScene } = useSceneStore();
   const { settings: daylightSettings } = useDaylightStore();
+
+  const collapseSearch = useCallback(() => {
+    setSearchExpanded(false);
+    searchExpandedSV.value = false;
+    setSearchInput("");
+    setShowResults(false);
+    Keyboard.dismiss();
+  }, [searchExpandedSV]);
+
+  // ---- Scroll & condensing header state ----
+  const scrollY = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (e) => { scrollY.value = e.contentOffset.y; },
+    onBeginDrag: () => {
+      if (searchExpandedSV.value) runOnJS(collapseSearch)();
+    },
+  });
+
+  const topRowAnimatedStyle = useAnimatedStyle(() => {
+    if (searchExpandedSV.value) return { opacity: 1, transform: [{ translateY: 0 }] };
+    return {
+      opacity: interpolate(scrollY.value, [0, 50], [1, 0], Extrapolation.CLAMP),
+      transform: [{ translateY: interpolate(scrollY.value, [0, 50], [0, -12], Extrapolation.CLAMP) }],
+    };
+  });
 
   // Data hooks
   const {
@@ -77,6 +137,7 @@ export default function BriefingScreen() {
   } = useMetar(selectedStation);
   const { data: tafData } = useTaf(selectedStation);
   const { data: briefingData } = useAiBriefing(metarData?.raw);
+  const { data: airportData } = useRunways(selectedStation);
 
   const metar = metarData?.normalized ?? null;
   const alerts = useAlerts(metar, thresholds, runwayHeading);
@@ -96,6 +157,15 @@ export default function BriefingScreen() {
       setScene(scene);
     }
   }, [metar, setScene]);
+
+  // Track briefing view
+  const trackedStationRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (metar && selectedStation && selectedStation !== trackedStationRef.current) {
+      trackedStationRef.current = selectedStation;
+      trackEvent({ type: "briefing", station: selectedStation });
+    }
+  }, [metar, selectedStation]);
 
   // Auto-load home airport when available (only once)
   useEffect(() => {
@@ -145,8 +215,10 @@ export default function BriefingScreen() {
     addRecentStation(airport.icao);
     setSearchInput("");
     setShowResults(false);
+    setSearchExpanded(false);
+    searchExpandedSV.value = false;
     Keyboard.dismiss();
-  }, [setStation, addRecentStation]);
+  }, [setStation, addRecentStation, searchExpandedSV]);
 
   const handleSearch = useCallback(() => {
     const icao = searchInput.trim().toUpperCase();
@@ -156,9 +228,11 @@ export default function BriefingScreen() {
       addRecentStation(icao);
       setSearchInput("");
       setShowResults(false);
+      setSearchExpanded(false);
+      searchExpandedSV.value = false;
       Keyboard.dismiss();
     }
-  }, [searchInput, setStation, addRecentStation]);
+  }, [searchInput, setStation, addRecentStation, searchExpandedSV]);
 
   // Pull-to-refresh
   const [refreshing, setRefreshing] = useState(false);
@@ -173,12 +247,15 @@ export default function BriefingScreen() {
   return (
     <View style={styles.container}>
       <DynamicSkyBackground scene={scene} />
+
       <SafeAreaView style={[styles.safe, { zIndex: 1 }]} edges={["top"]}>
-        <ScrollView
+        <Animated.ScrollView
           style={[styles.scroll, { zIndex: 2 }]}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -187,37 +264,96 @@ export default function BriefingScreen() {
             />
           }
         >
-          {/* Header */}
-          <Animated.View entering={FadeInDown.delay(0)} style={styles.header}>
-            <View style={styles.titleRow}>
-              <CloudSun size={24} color="#ffffff" strokeWidth={1.5} />
-              <Text style={styles.title}>SkyBrief</Text>
-            </View>
-            <Text style={styles.subtitle}>Preflight weather briefing</Text>
-          </Animated.View>
-
-          {/* Search Bar */}
-          <Animated.View entering={FadeInDown.delay(50)} style={styles.searchContainer}>
-            <View style={styles.searchBar}>
-              <Search size={18} color="rgba(255,255,255,0.6)" />
-              <TextInput
-                value={searchInput}
-                onChangeText={handleSearchInput}
-                onSubmitEditing={handleSearch}
-                placeholder="Search ICAO (e.g. KJFK)"
-                placeholderTextColor="rgba(255,255,255,0.4)"
-                autoCapitalize="characters"
-                returnKeyType="search"
-                style={styles.searchInput}
-              />
-            </View>
+          {/* Search Icon + Inline Chips Row */}
+          <Animated.View entering={FadeInDown.delay(50)} style={[styles.topRow, topRowAnimatedStyle]}>
+            {!searchExpanded ? (
+              <View style={styles.topRowCollapsed}>
+                {recentStations.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipsInline}
+                    style={styles.chipsScroll}
+                  >
+                    {recentStations.map((icao) => (
+                      <Pressable
+                        key={icao}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setStation(icao);
+                        }}
+                        style={[
+                          styles.chip,
+                          selectedStation === icao && styles.chipActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            selectedStation === icao && styles.chipTextActive,
+                          ]}
+                        >
+                          {icao}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <View style={{ flex: 1 }} />
+                )}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSearchExpanded(true);
+                    searchExpandedSV.value = true;
+                  }}
+                  style={styles.searchIconButton}
+                  hitSlop={8}
+                  accessibilityLabel="Search airports"
+                  accessibilityRole="button"
+                >
+                  <Search size={20} color="rgba(255,255,255,0.7)" />
+                </Pressable>
+              </View>
+            ) : (
+              <Animated.View style={styles.topRowExpanded} entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)}>
+                <View style={styles.searchBarCompact}>
+                  <Search size={16} color="rgba(255,255,255,0.5)" />
+                  <TextInput
+                    value={searchInput}
+                    onChangeText={handleSearchInput}
+                    onSubmitEditing={handleSearch}
+                    placeholder="Search ICAO (e.g. KJFK)"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    autoCapitalize="characters"
+                    autoFocus
+                    returnKeyType="search"
+                    style={styles.searchInputCompact}
+                  />
+                </View>
+                <Pressable onPress={collapseSearch} hitSlop={8}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+              </Animated.View>
+            )}
           </Animated.View>
 
           {/* Search Results Dropdown */}
-          {showResults && (
+          {showResults && searchExpanded && (
             <Animated.View
               entering={FadeInDown}
-              style={styles.searchDropdown}
+              style={[
+                styles.searchDropdown,
+                {
+                  top: 56,
+                  backgroundColor: isDark
+                    ? "rgba(30,30,35,0.97)"
+                    : "rgba(255,255,255,0.95)",
+                  borderColor: isDark
+                    ? "rgba(255,255,255,0.12)"
+                    : "rgba(255,255,255,0.3)",
+                },
+              ]}
             >
               <ScrollView
                 style={styles.resultsList}
@@ -230,57 +366,66 @@ export default function BriefingScreen() {
                     <Pressable
                       key={airport.icao}
                       onPress={() => selectAirport(airport)}
-                      style={styles.resultItem}
+                      style={[
+                        styles.resultItem,
+                        {
+                          borderBottomColor: isDark
+                            ? "rgba(255,255,255,0.08)"
+                            : "rgba(12,140,233,0.1)",
+                        },
+                      ]}
                     >
                       <View style={styles.resultMain}>
-                        <Text style={styles.resultCode}>{airport.icao}</Text>
+                        <Text
+                          style={[
+                            styles.resultCode,
+                            { color: isDark ? "#FFFFFF" : colors.stratus[800] },
+                          ]}
+                        >
+                          {airport.icao}
+                        </Text>
                         {hasAliases && (
-                          <Text style={styles.resultAliases}>
+                          <Text
+                            style={[
+                              styles.resultAliases,
+                              {
+                                color: isDark
+                                  ? "rgba(255,255,255,0.5)"
+                                  : colors.stratus[500],
+                              },
+                            ]}
+                          >
                             also: {airport.aliases.join(", ")}
                           </Text>
                         )}
                       </View>
-                      <Text style={styles.resultName}>{airport.name}</Text>
-                      <Text style={styles.resultLocation}>
+                      <Text
+                        style={[
+                          styles.resultName,
+                          {
+                            color: isDark
+                              ? "rgba(255,255,255,0.85)"
+                              : colors.stratus[700],
+                          },
+                        ]}
+                      >
+                        {airport.name}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.resultLocation,
+                          {
+                            color: isDark
+                              ? "rgba(255,255,255,0.5)"
+                              : colors.stratus[500],
+                          },
+                        ]}
+                      >
                         {airport.municipality} · {airport.type}
                       </Text>
                     </Pressable>
                   );
                 })}
-              </ScrollView>
-            </Animated.View>
-          )}
-
-          {/* Recent Stations */}
-          {recentStations.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(100)}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chips}
-              >
-                {recentStations.map((icao) => (
-                  <Pressable
-                    key={icao}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setStation(icao);
-                    }}
-                    style={[
-                      styles.chip,
-                      selectedStation === icao && styles.chipActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        selectedStation === icao && styles.chipTextActive,
-                      ]}
-                    >
-                      {icao}
-                    </Text>
-                  </Pressable>
-                ))}
               </ScrollView>
             </Animated.View>
           )}
@@ -304,63 +449,110 @@ export default function BriefingScreen() {
 
           {/* Weather Data */}
           {metar && !metarLoading && (
-            <View style={[styles.cards, isGrounded && { opacity: 0.5 }]}>
-              <WeatherSummaryCard metar={metar} />
-              <CloudLayerStack
-                clouds={metar.clouds}
-                ceiling={metar.ceiling}
-              />
+            <View
+              style={[styles.cards, isGrounded && { opacity: 0.5 }]}
+            >
+              <StationHeader metar={metar} />
+
+              {/* Observation age */}
+              {metar.observationTime && (
+                <Animated.View entering={FadeInDown.delay(100)}>
+                  <Text style={styles.observationAge}>
+                    {formatObservationAge(metar.observationTime)}
+                  </Text>
+                </Animated.View>
+              )}
+
+              {/* Flight Rules + Wind (inside WeatherCards) */}
+              <WeatherCards metar={metar} hideHeader hideSideBySide />
+
+              {/* VIS + CEILING */}
+              <Animated.View entering={FadeInDown.delay(150)} style={styles.sideBySide}>
+                <View style={{ flex: 1 }}>
+                  <DataCard
+                    label="VISIBILITY"
+                    value={`${metar.visibility.sm}${metar.visibility.isPlus ? "+" : ""}`}
+                    unit="SM"
+                    style={{ flex: 1 }}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <DataCard
+                    label="CEILING"
+                    value={metar.ceiling ? metar.ceiling.toLocaleString() : "CLR"}
+                    unit={metar.ceiling ? "FT" : ""}
+                    accentColor={
+                      metar.flightCategory === "IFR" || metar.flightCategory === "LIFR"
+                        ? colors[metar.flightCategory.toLowerCase() as "ifr" | "lifr"]
+                        : undefined
+                    }
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </Animated.View>
+
+              {/* TEMP + ALT */}
+              <Animated.View entering={FadeInDown.delay(175)} style={styles.sideBySide}>
+                <View style={{ flex: 1 }}>
+                  <DataCard
+                    label="TEMP / DEWPT"
+                    value={`${metar.temperature.celsius}/${metar.dewpoint.celsius}`}
+                    unit={"\u00B0C"}
+                    supplementary={metar.tempDewpointSpread <= 3 ? "Fog risk \u2014 spread \u2264 3\u00B0C" : undefined}
+                    supplementaryColor={metar.tempDewpointSpread <= 3 ? colors.alert.amber : undefined}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <DataCard
+                    label="ALTIMETER"
+                    value={metar.altimeter.toFixed(2)}
+                    unit={'"Hg'}
+                    supplementary={`PA: ${Math.round((29.92 - metar.altimeter) * 1000 + Math.round(metar.location.elevation * 3.28084)).toLocaleString()} ft`}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </Animated.View>
+
+              {/* Cloud Layers */}
+              <CloudLayerStack clouds={metar.clouds} ceiling={metar.ceiling} />
 
               {/* Daylight & Currency Timeline */}
-              {selectedStation && (() => {
-                const coords = findStationCoords(selectedStation);
-                if (!coords) return null;
-                return (
-                  <Animated.View entering={FadeInDown.delay(175)}>
-                    <CloudCard>
-                      <DaylightTimeline
-                        lat={coords.lat}
-                        lon={coords.lon}
-                        settings={daylightSettings}
-                      />
-                    </CloudCard>
-                  </Animated.View>
-                );
-              })()}
+              {selectedStation &&
+                (() => {
+                  const coords = findStationCoords(selectedStation);
+                  if (!coords) return null;
+                  return (
+                    <Animated.View entering={FadeInDown.delay(175)}>
+                      <CloudCard>
+                        <DaylightTimeline
+                          lat={coords.lat}
+                          lon={coords.lon}
+                          settings={daylightSettings}
+                        />
+                      </CloudCard>
+                    </Animated.View>
+                  );
+                })()}
 
               {/* Fuel Price */}
               {selectedStation && (
                 <Animated.View entering={FadeInDown.delay(185)}>
-                  <FuelPriceCard
-                    icao={selectedStation}
-                    uid={user?.uid ?? null}
-                  />
+                  <FuelPriceCard icao={selectedStation} uid={user?.uid ?? null} />
                 </Animated.View>
               )}
 
               {/* Runway Wind Analysis */}
-              {metar.wind && (
-                <Animated.View entering={FadeInDown.delay(200)}>
-                  <CloudCard>
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        fontFamily: "Inter_600SemiBold",
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                        marginBottom: 8,
-                        color: isDark ? theme.foreground : colors.stratus[700],
-                      }}
-                    >
-                      Runway Wind Analysis
-                    </Text>
-                    <RunwayVisualizer
-                      runwayHeading={runwayHeading ?? 360}
+              {metar.wind && airportData?.runways && airportData.runways.length > 0 && (
+                <Animated.View entering={FadeInDown.delay(200)} style={{ gap: 12 }}>
+                  {airportData.runways.map((runway) => (
+                    <RunwayWindCard
+                      key={runway.runway_id}
+                      runway={runway}
                       windDirection={metar.wind.direction}
                       windSpeed={metar.wind.speed}
-                      onHeadingChange={(hdg) => setRunwayHeading(hdg)}
                     />
-                  </CloudCard>
+                  ))}
                 </Animated.View>
               )}
 
@@ -380,10 +572,14 @@ export default function BriefingScreen() {
               </Animated.View>
 
               {/* NOTAMs */}
-              {selectedStation && <NotamSection station={selectedStation} delay={300} />}
+              {selectedStation && (
+                <NotamSection station={selectedStation} delay={300} />
+              )}
 
               {/* AI Briefing */}
-              {briefingData && <AiBriefingCard briefing={briefingData} />}
+              {briefingData && (
+                <AiBriefingCard briefing={briefingData} />
+              )}
 
               {/* Raw METAR */}
               <MetarRawDisplay rawText={metar.rawText} />
@@ -406,7 +602,7 @@ export default function BriefingScreen() {
 
           {/* Bottom spacing for tab bar */}
           <View style={{ height: 100 }} />
-        </ScrollView>
+        </Animated.ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -417,51 +613,44 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, maxWidth: 500, width: "100%", alignSelf: "center" },
-  header: {
-    paddingTop: 12,
-    marginBottom: 16,
+  topRow: { marginTop: 8, marginBottom: 12, minHeight: 36 },
+  topRowCollapsed: { flexDirection: "row", alignItems: "center", gap: 12 },
+  chipsScroll: { flex: 1 },
+  chipsInline: { flexDirection: "row", gap: 8, paddingRight: 4 },
+  searchIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
   },
-  titleRow: {
+  topRowExpanded: { flexDirection: "row", alignItems: "center", gap: 12 },
+  searchBarCompact: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-  },
-  title: {
-    fontSize: 24,
-    fontFamily: "Inter_700Bold",
-    color: "#ffffff",
-    textShadowColor: "rgba(0,0,0,0.15)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
-  },
-  subtitle: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.6)",
-    marginTop: 4,
-  },
-  searchContainer: { marginBottom: 12 },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
     backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
-  searchInput: {
+  searchInputCompact: {
     flex: 1,
     fontSize: 15,
     fontFamily: "JetBrainsMono_400Regular",
     color: "#ffffff",
+    padding: 0,
   },
-  chips: {
-    flexDirection: "row",
-    gap: 8,
-    paddingBottom: 12,
+  cancelText: {
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.8)",
   },
   chip: {
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -499,6 +688,14 @@ const styles = StyleSheet.create({
   },
   skeletons: { gap: 12 },
   cards: { gap: 12 },
+  observationAge: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 4,
+    marginTop: -4,
+  },
+  sideBySide: { flexDirection: "row", gap: 12 },
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
@@ -507,7 +704,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     color: "rgba(255,255,255,0.6)",
   },
   emptySubtitle: {
@@ -521,10 +718,8 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     maxHeight: 300,
-    backgroundColor: 'rgba(255,255,255,0.95)',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
     overflow: 'hidden',
     zIndex: 1000,
     shadowColor: '#000',
@@ -538,7 +733,6 @@ const styles = StyleSheet.create({
   resultItem: {
     padding: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(12,140,233,0.1)',
   },
   resultMain: {
     flexDirection: 'row',
@@ -549,23 +743,19 @@ const styles = StyleSheet.create({
   resultCode: {
     fontSize: 14,
     fontFamily: 'JetBrainsMono_700Bold',
-    color: colors.stratus[800],
   },
   resultAliases: {
     fontSize: 11,
     fontFamily: 'JetBrainsMono_400Regular',
-    color: colors.stratus[500],
     fontStyle: 'italic',
   },
   resultName: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.stratus[700],
+    fontFamily: 'SpaceGrotesk_600SemiBold',
     marginBottom: 2,
   },
   resultLocation: {
     fontSize: 11,
     fontFamily: 'Inter_400Regular',
-    color: colors.stratus[500],
   },
 });

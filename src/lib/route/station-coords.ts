@@ -1,5 +1,6 @@
 import airportDatabase from "@/data/airport-database.json";
 import type { AirportData } from "@/lib/airport/types";
+import { navaidDataService } from "@/services/navaid-data";
 
 export interface StationCoord {
   icao: string;
@@ -46,6 +47,17 @@ export function findStationCoords(identifier: string): StationCoord | null {
       lon: aliasMatch.longitude_deg,
       name: aliasMatch.name,
       city: aliasMatch.municipality,
+    };
+  }
+
+  // Fallback: search navaid database (VOR, NDB, FIX identifiers like "STL", "VUZ")
+  const navaid = navaidDataService.getNavaid(query);
+  if (navaid) {
+    return {
+      icao: navaid.identifier,
+      lat: navaid.latitude_deg,
+      lon: navaid.longitude_deg,
+      name: navaid.name,
     };
   }
 

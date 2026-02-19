@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { zustandMMKVStorage } from "@/services/storage";
-import { CESSNA_172S, type AircraftType } from "@/lib/wb/aircraft-types";
+import { CESSNA_172S, AIRCRAFT_DATABASE, type AircraftType } from "@/lib/wb/aircraft-types";
 
 interface SavedAircraftProfile {
   baseAircraftId: string;
@@ -127,6 +127,25 @@ export const useWBStore = create<WBStore>()(
     {
       name: "skybrief-wb",
       storage: createJSONStorage(() => zustandMMKVStorage),
+      merge: (persistedState, currentState) => {
+        const state = { ...currentState, ...(persistedState as Partial<WBStore>) };
+        // Ensure aircraft has all required fields (older persisted state may lack
+        // cruiseSpeedKts / fuelBurnRateGPH added after initial release)
+        if (state.aircraft?.id) {
+          const base = AIRCRAFT_DATABASE.find((a) => a.id === state.aircraft.id);
+          if (base) {
+            state.aircraft = { ...base, ...state.aircraft };
+          }
+        }
+        // Fallback if aircraft still lacks cruise perf fields
+        if (!state.aircraft.cruiseSpeedKts) {
+          state.aircraft.cruiseSpeedKts = CESSNA_172S.cruiseSpeedKts;
+        }
+        if (!state.aircraft.fuelBurnRateGPH) {
+          state.aircraft.fuelBurnRateGPH = CESSNA_172S.fuelBurnRateGPH;
+        }
+        return state as WBStore;
+      },
     }
   )
 );

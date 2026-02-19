@@ -14,6 +14,7 @@ import type {
   FuelPriceReport,
   AirportFuelPrices,
 } from "@/lib/api/types";
+import type { PersonalMinimums } from "@/lib/minimums/types";
 import { validateIcao } from "@/lib/validation/icao";
 import { validateFuelPrice, validateFboName } from "@/lib/validation/fuel-price";
 import { FUEL_PRICE_DEFAULTS } from "@/config/defaults";
@@ -214,7 +215,13 @@ if (!PROJECT_ID) {
   );
 }
 
-const FIRESTORE_API_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+export const FIRESTORE_API_URL = PROJECT_ID
+  ? `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`
+  : "";
+
+function assertFirestoreEnabled(): void {
+  if (!FIRESTORE_API_URL) throw new Error("Firestore disabled: EXPO_PUBLIC_FIREBASE_PROJECT_ID not set");
+}
 
 // ─── User Profile Types ────────────────────────────────────────────────────
 
@@ -226,6 +233,10 @@ export interface UserProfile {
   experienceLevel: "student" | "private" | "commercial" | "atp";
   defaultAircraft: string;
   onboardingComplete: boolean;
+  minimumsEnabled?: boolean;
+  personalMinimums?: PersonalMinimums;
+  role?: "user" | "admin";
+  lastActiveAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -240,7 +251,8 @@ export function isFuelPriceStale(data: FuelPriceData): boolean {
 
 // ─── Firestore REST API Helpers ────────────────────────────────────────────
 
-function firestoreValueToJS(value: any): any {
+export function firestoreValueToJS(value: any): any {
+  if (value == null) return null;
   if (value.stringValue !== undefined) return value.stringValue;
   if (value.integerValue !== undefined) return parseInt(value.integerValue, 10);
   if (value.doubleValue !== undefined) return value.doubleValue;
@@ -250,7 +262,7 @@ function firestoreValueToJS(value: any): any {
   return null;
 }
 
-function jsToFirestoreValue(value: any): any {
+export function jsToFirestoreValue(value: any): any {
   if (value === null) return { nullValue: null };
   if (typeof value === "string") return { stringValue: value };
   if (typeof value === "number") {
@@ -266,6 +278,7 @@ function jsToFirestoreValue(value: any): any {
 
 export async function getFuelPrice(icao: string): Promise<FuelPriceData | null> {
   try {
+    assertFirestoreEnabled();
     const docUrl = `${FIRESTORE_API_URL}/fuel_prices/${icao.toUpperCase()}`;
     const response = await fetch(docUrl);
 
@@ -368,6 +381,8 @@ export async function submitFuelPrice(
   validateFuelPriceInput(icao, price, fboName, uid);
 
   try {
+    assertFirestoreEnabled();
+
     // Get Firebase Auth ID token for authentication
     const currentUser = safeCurrentUser();
     if (!currentUser) {
@@ -432,6 +447,8 @@ export async function submitFuelPriceReport(
   validateFuelPriceInput(icao, price, fboName, uid);
 
   try {
+    assertFirestoreEnabled();
+
     const currentUser = safeCurrentUser();
     if (!currentUser) {
       throw new Error("User not authenticated");
@@ -487,6 +504,7 @@ export async function submitFuelPriceReport(
  */
 export async function getFuelPriceReports(icao: string): Promise<FuelPriceReport[]> {
   try {
+    assertFirestoreEnabled();
     // Query subcollection: fuel_prices/{icao}/reports
     const collectionUrl = `${FIRESTORE_API_URL}/fuel_prices/${icao.toUpperCase()}/reports`;
 
@@ -526,7 +544,7 @@ export async function getFuelPriceReports(icao: string): Promise<FuelPriceReport
 
     return reports;
   } catch (error) {
-    console.error("[Firestore] Error fetching fuel price reports:", error);
+    console.warn("[Firestore] Error fetching fuel price reports:", error);
     return [];
   }
 }
@@ -540,6 +558,7 @@ export async function upvoteFuelReport(
   uid: string
 ): Promise<void> {
   try {
+    assertFirestoreEnabled();
     const currentUser = safeCurrentUser();
     if (!currentUser) {
       throw new Error("User not authenticated");
@@ -606,6 +625,7 @@ export async function flagFuelReport(
   uid: string
 ): Promise<void> {
   try {
+    assertFirestoreEnabled();
     const currentUser = safeCurrentUser();
     if (!currentUser) {
       throw new Error("User not authenticated");
@@ -683,6 +703,7 @@ function generateFirestoreId(): string {
  */
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   try {
+    assertFirestoreEnabled();
     // Get Firebase Auth ID token for authentication
     const currentUser = safeCurrentUser();
     if (!currentUser) {
@@ -714,6 +735,18 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     const data = await response.json();
     const fields = data.fields || {};
 
+    // Deserialize personalMinimums from individual fields
+    const personalMinimums: PersonalMinimums | undefined =
+      fields.minimums_ceiling
+        ? {
+            ceiling: firestoreValueToJS(fields.minimums_ceiling) ?? 3000,
+            visibility: firestoreValueToJS(fields.minimums_visibility) ?? 5,
+            crosswind: firestoreValueToJS(fields.minimums_crosswind) ?? 15,
+            maxWind: firestoreValueToJS(fields.minimums_maxWind) ?? 25,
+            maxGust: firestoreValueToJS(fields.minimums_maxGust) ?? 25,
+          }
+        : undefined;
+
     return {
       uid: firestoreValueToJS(fields.uid) || uid,
       name: firestoreValueToJS(fields.name) || "",
@@ -722,6 +755,15 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
       experienceLevel: firestoreValueToJS(fields.experienceLevel) || "private",
       defaultAircraft: firestoreValueToJS(fields.defaultAircraft) || "c172s",
       onboardingComplete: firestoreValueToJS(fields.onboardingComplete) || false,
+      minimumsEnabled:
+        fields.minimumsEnabled !== undefined
+          ? firestoreValueToJS(fields.minimumsEnabled)
+          : undefined,
+      personalMinimums,
+      role: firestoreValueToJS(fields.role) || undefined,
+      lastActiveAt: fields.lastActiveAt
+        ? firestoreValueToJS(fields.lastActiveAt)
+        : undefined,
       createdAt: firestoreValueToJS(fields.createdAt) || new Date(),
       updatedAt: firestoreValueToJS(fields.updatedAt) || new Date(),
     };
@@ -736,6 +778,8 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
  */
 export async function saveUserProfile(profile: Partial<UserProfile> & { uid: string }): Promise<void> {
   try {
+    assertFirestoreEnabled();
+
     const currentUser = safeCurrentUser();
     if (!currentUser) {
       throw new Error("User not authenticated");
@@ -748,6 +792,9 @@ export async function saveUserProfile(profile: Partial<UserProfile> & { uid: str
     const existing = await getUserProfile(profile.uid);
     const now = new Date();
 
+    const mins =
+      profile.personalMinimums ?? existing?.personalMinimums;
+
     const firestoreDoc = {
       fields: {
         uid: jsToFirestoreValue(profile.uid),
@@ -757,6 +804,20 @@ export async function saveUserProfile(profile: Partial<UserProfile> & { uid: str
         experienceLevel: jsToFirestoreValue(profile.experienceLevel ?? existing?.experienceLevel ?? "private"),
         defaultAircraft: jsToFirestoreValue(profile.defaultAircraft ?? existing?.defaultAircraft ?? "c172s"),
         onboardingComplete: jsToFirestoreValue(profile.onboardingComplete ?? existing?.onboardingComplete ?? false),
+        minimumsEnabled: jsToFirestoreValue(
+          profile.minimumsEnabled ?? existing?.minimumsEnabled ?? false
+        ),
+        ...(mins
+          ? {
+              minimums_ceiling: jsToFirestoreValue(mins.ceiling),
+              minimums_visibility: jsToFirestoreValue(mins.visibility),
+              minimums_crosswind: jsToFirestoreValue(mins.crosswind),
+              minimums_maxWind: jsToFirestoreValue(mins.maxWind),
+              minimums_maxGust: jsToFirestoreValue(mins.maxGust),
+            }
+          : {}),
+        // Preserve role — never overwrite from client
+        ...(existing?.role ? { role: jsToFirestoreValue(existing.role) } : {}),
         createdAt: jsToFirestoreValue(existing?.createdAt ?? now),
         updatedAt: jsToFirestoreValue(now),
       },

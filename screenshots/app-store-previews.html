@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SkyBrief — App Store Previews</title>
+  <style>
+    /* ============================================================
+       GLOBAL RESET & BASE
+    ============================================================ */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #e8f4f8;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+      color: #1a1a2e;
+      padding: 48px 0;
+    }
+
+    /* ============================================================
+       PAGE HEADER
+    ============================================================ */
+    .page-header {
+      text-align: center;
+      margin-bottom: 56px;
+      padding: 0 32px;
+    }
+
+    .page-header h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #1a1a2e;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+
+    .page-header p {
+      font-size: 15px;
+      color: rgba(26, 26, 46, 0.6);
+      line-height: 1.6;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .page-header code {
+      background: rgba(26, 26, 46, 0.08);
+      border: 1px solid rgba(26, 26, 46, 0.15);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      color: #0369a1;
+    }
+
+    /* ============================================================
+       SCREEN WRAPPER
+    ============================================================ */
+    .screen-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 80px;
+    }
+
+    .screen-label {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(26, 26, 46, 0.45);
+      margin-bottom: 16px;
+    }
+
+    /* ============================================================
+       PREVIEW SCREEN — the actual 1290x2796 canvas
+    ============================================================ */
+    .preview-screen {
+      width: 1290px;
+      height: 2796px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    /* ============================================================
+       DECORATIVE ELEMENTS — scattered aviation icons
+    ============================================================ */
+    .deco {
+      position: absolute;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    /* ============================================================
+       BRAND BADGE — top brand mark
+    ============================================================ */
+    .brand-badge {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 100px;
+    }
+
+    .brand-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(59, 130, 246, 0.35);
+    }
+
+    .brand-icon svg {
+      width: 30px;
+      height: 30px;
+    }
+
+    .brand-name {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: #1a1a2e;
+    }
+
+    /* ============================================================
+       HEADLINE BLOCK
+    ============================================================ */
+    .headline-block {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      padding: 0 100px;
+      margin-top: 60px;
+    }
+
+    .headline-block h2 {
+      font-size: 86px;
+      font-weight: 800;
+      line-height: 1.0;
+      letter-spacing: -3px;
+      color: #1a1a2e;
+    }
+
+    /* ============================================================
+       STAT BADGES (Screen 1)
+    ============================================================ */
+    .stat-badges {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      gap: 24px;
+      margin-top: 44px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .stat-badge {
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      padding: 18px 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.05);
+      backdrop-filter: blur(10px);
+    }
+
+    .stat-badge-icon {
+      flex-shrink: 0;
+    }
+
+    .stat-badge-text {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1a1a2e;
+      line-height: 1.2;
+      max-width: 200px;
+    }
+
+    .stat-badge-text span {
+      display: block;
+      font-size: 16px;
+      font-weight: 500;
+      color: rgba(26, 26, 46, 0.6);
+      margin-top: 2px;
+    }
+
+    /* ============================================================
+       FLOATING CARDS
+    ============================================================ */
+    .floating-card {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(255, 255, 255, 1);
+      border-radius: 20px;
+      padding: 20px 26px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
+      backdrop-filter: blur(12px);
+      z-index: 15;
+    }
+
+    .floating-card-label {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(26, 26, 46, 0.5);
+      margin-bottom: 6px;
+    }
+
+    .floating-card-value {
+      font-size: 36px;
+      font-weight: 800;
+      color: #1a1a2e;
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .floating-card-unit {
+      font-size: 16px;
+      font-weight: 500;
+      color: rgba(26, 26, 46, 0.5);
+      margin-top: 4px;
+    }
+
+    /* ============================================================
+       FLOATING BADGE
+    ============================================================ */
+    .floating-badge {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(255, 255, 255, 1);
+      border-radius: 50px;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 10px 36px rgba(0, 0, 0, 0.12), 0 3px 10px rgba(0, 0, 0, 0.06);
+      backdrop-filter: blur(12px);
+      z-index: 15;
+      font-size: 22px;
+      font-weight: 700;
+      color: #1a1a2e;
+    }
+
+    /* ============================================================
+       IPHONE FRAME
+    ============================================================ */
+    .phone-container {
+      position: absolute;
+      z-index: 10;
+      bottom: 0;
+    }
+
+    .phone-frame {
+      width: 580px;
+      height: 1256px;
+      background: #111118;
+      border-radius: 56px;
+      border: 11px solid #1c1c28;
+      position: relative;
+      overflow: hidden;
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        inset 1px 1px 0 rgba(255, 255, 255, 0.08),
+        0 40px 120px rgba(0, 0, 0, 0.28),
+        0 16px 40px rgba(0, 0, 0, 0.18);
+    }
+
+    /* Left buttons */
+    .phone-frame::before {
+      content: '';
+      position: absolute;
+      left: -17px;
+      top: 190px;
+      width: 5px;
+      height: 68px;
+      background: #1c1c28;
+      border-radius: 3px 0 0 3px;
+      box-shadow: 0 88px 0 #1c1c28, 0 164px 0 #1c1c28;
+    }
+
+    /* Right button */
+    .phone-frame::after {
+      content: '';
+      position: absolute;
+      right: -17px;
+      top: 268px;
+      width: 5px;
+      height: 96px;
+      background: #1c1c28;
+      border-radius: 0 3px 3px 0;
+    }
+
+    .phone-screen {
+      position: absolute;
+      inset: 0;
+      border-radius: 45px;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .phone-screen img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+      display: block;
+    }
+
+    /* Dynamic Island */
+    .dynamic-island {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 184px;
+      height: 34px;
+      background: #111118;
+      border-radius: 22px;
+      z-index: 20;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+    }
+
+    /* Screen glare */
+    .screen-glare {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 45%;
+      background: linear-gradient(
+        155deg,
+        rgba(255, 255, 255, 0.05) 0%,
+        rgba(255, 255, 255, 0.02) 35%,
+        transparent 65%
+      );
+      border-radius: 45px 45px 0 0;
+      pointer-events: none;
+      z-index: 21;
+    }
+
+    /* ============================================================
+       SCREEN 1 — Hero: Sky blue to mint gradient
+    ============================================================ */
+    .screen-1 {
+      background: linear-gradient(160deg, #c8eeff 0%, #a8e6cf 28%, #88d8c0 55%, #7ec8e3 78%, #a0d4f5 100%);
+    }
+
+    /* ============================================================
+       SCREEN 2 — Weather Detail: Light sky blue
+    ============================================================ */
+    .screen-2 {
+      background: linear-gradient(155deg, #dff0ff 0%, #b8deff 25%, #94ccf5 50%, #a8e0f0 75%, #c4ecf8 100%);
+    }
+
+    /* ============================================================
+       SCREEN 3 — AI Insights: Soft blue-purple to light blue
+    ============================================================ */
+    .screen-3 {
+      background: linear-gradient(165deg, #e8e4ff 0%, #c8b8f8 22%, #b0a0f0 45%, #98c4f8 70%, #b8d8f8 100%);
+    }
+
+    /* ============================================================
+       SCREEN 4 — Route Planning: Soft teal to mint
+    ============================================================ */
+    .screen-4 {
+      background: linear-gradient(158deg, #c0f0e8 0%, #a0e0d0 28%, #80d4be 52%, #94dce8 76%, #b0ecf4 100%);
+    }
+
+    /* ============================================================
+       SCREEN 5 — Weight & Balance: Light blue to soft indigo
+    ============================================================ */
+    .screen-5 {
+      background: linear-gradient(162deg, #d8eeff 0%, #b8d4ff 25%, #a0bcf8 50%, #b8a8f0 75%, #d0c8ff 100%);
+    }
+
+    /* ============================================================
+       PRINT STYLES
+    ============================================================ */
+    @media print {
+      body {
+        background: #fff;
+        padding: 0;
+      }
+
+      .page-header {
+        display: none;
+      }
+
+      .screen-wrapper {
+        page-break-after: always;
+        margin-bottom: 0;
+      }
+
+      .screen-label {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================
+       PAGE HEADER
+  ============================================================ -->
+  <div class="page-header">
+    <h1>SkyBrief — App Store Previews</h1>
+    <p>
+      Each preview is rendered at exactly <code>1290 × 2796 px</code> (iPhone 6.7" requirement).<br />
+      To export: screenshot each screen at 1x using a tool like
+      <code>screencapture</code>, Playwright, or Puppeteer — or right-click a screen and
+      "Save as image" in a browser that supports full-resolution capture.
+    </p>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 1 — Hero / Intro
+  ============================================================ -->
+  <div class="screen-wrapper">
+    <div class="screen-label">Screen 1 of 5 — Hero / Intro</div>
+
+    <div class="preview-screen screen-1">
+
+      <!-- Radial depth overlay -->
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 50% at 50% 0%,rgba(255,255,255,0.45) 0%,transparent 65%);z-index:1;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 60% 40% at 80% 70%,rgba(168,230,207,0.3) 0%,transparent 60%);z-index:1;pointer-events:none;"></div>
+
+      <!-- Curved decorative line 1 -->
+      <svg style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;" viewBox="0 0 1290 2796" xmlns="http://www.w3.org/2000/svg">
+        <path d="M -80 400 Q 350 120 700 280 Q 1050 440 1400 200" stroke="white" stroke-width="2.5" fill="none" opacity="0.18"/>
+        <path d="M -80 650 Q 400 420 780 560 Q 1100 680 1400 450" stroke="white" stroke-width="1.5" fill="none" opacity="0.11"/>
+        <path d="M 200 2200 Q 600 2050 1000 2150 Q 1200 2200 1400 2100" stroke="white" stroke-width="2" fill="none" opacity="0.12"/>
+      </svg>
+
+      <!-- Decorative aviation elements — airplane silhouettes -->
+      <!-- Large airplane top-right, rotated -->
+      <svg class="deco" style="top:72px;right:88px;width:88px;height:88px;opacity:0.18;transform:rotate(32deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <!-- Small airplane top-left -->
+      <svg class="deco" style="top:140px;left:72px;width:46px;height:46px;opacity:0.14;transform:rotate(-18deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <!-- Airplane mid-left -->
+      <svg class="deco" style="top:680px;left:52px;width:62px;height:62px;opacity:0.13;transform:rotate(8deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <!-- Tiny airplane lower-right area -->
+      <svg class="deco" style="bottom:1200px;right:65px;width:38px;height:38px;opacity:0.16;transform:rotate(55deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+
+      <!-- Cloud shapes -->
+      <!-- Large cloud top area -->
+      <svg class="deco" style="top:50px;left:220px;width:160px;height:80px;opacity:0.16;" viewBox="0 0 160 80" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="80" cy="55" rx="70" ry="25" fill="white"/>
+        <ellipse cx="50" cy="45" rx="35" ry="28" fill="white"/>
+        <ellipse cx="100" cy="42" rx="40" ry="30" fill="white"/>
+        <ellipse cx="128" cy="50" rx="28" ry="22" fill="white"/>
+      </svg>
+      <!-- Cloud right side -->
+      <svg class="deco" style="top:300px;right:40px;width:120px;height:60px;opacity:0.13;" viewBox="0 0 120 60" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="60" cy="42" rx="52" ry="18" fill="white"/>
+        <ellipse cx="38" cy="34" rx="26" ry="20" fill="white"/>
+        <ellipse cx="76" cy="32" rx="30" ry="22" fill="white"/>
+        <ellipse cx="96" cy="38" rx="22" ry="16" fill="white"/>
+      </svg>
+      <!-- Cloud lower-left -->
+      <svg class="deco" style="bottom:1480px;left:30px;width:100px;height:50px;opacity:0.12;" viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="50" cy="34" rx="42" ry="16" fill="white"/>
+        <ellipse cx="32" cy="28" rx="22" ry="18" fill="white"/>
+        <ellipse cx="62" cy="26" rx="26" ry="20" fill="white"/>
+      </svg>
+      <!-- Tiny cloud right -->
+      <svg class="deco" style="bottom:1380px;right:80px;width:72px;height:36px;opacity:0.14;" viewBox="0 0 72 36" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="36" cy="24" rx="30" ry="12" fill="white"/>
+        <ellipse cx="22" cy="20" rx="16" ry="14" fill="white"/>
+        <ellipse cx="48" cy="18" rx="20" ry="15" fill="white"/>
+      </svg>
+
+      <!-- Compass rose -->
+      <svg class="deco" style="top:420px;right:110px;width:70px;height:70px;opacity:0.14;transform:rotate(12deg);" viewBox="0 0 70 70" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="35" cy="35" r="32" fill="none" stroke="white" stroke-width="1.5"/>
+        <circle cx="35" cy="35" r="4" fill="white"/>
+        <!-- N S E W points -->
+        <polygon points="35,3 31,20 35,16 39,20" fill="white"/>
+        <polygon points="35,67 31,50 35,54 39,50" fill="white"/>
+        <polygon points="3,35 20,31 16,35 20,39" fill="white"/>
+        <polygon points="67,35 50,31 54,35 50,39" fill="white"/>
+        <!-- Diagonal short ticks -->
+        <line x1="13" y1="13" x2="20" y2="20" stroke="white" stroke-width="1.2"/>
+        <line x1="57" y1="13" x2="50" y2="20" stroke="white" stroke-width="1.2"/>
+        <line x1="13" y1="57" x2="20" y2="50" stroke="white" stroke-width="1.2"/>
+        <line x1="57" y1="57" x2="50" y2="50" stroke="white" stroke-width="1.2"/>
+        <!-- Outer ring tick marks -->
+        <line x1="35" y1="4" x2="35" y2="10" stroke="white" stroke-width="1"/>
+        <line x1="35" y1="60" x2="35" y2="66" stroke="white" stroke-width="1"/>
+        <line x1="4" y1="35" x2="10" y2="35" stroke="white" stroke-width="1"/>
+        <line x1="60" y1="35" x2="66" y2="35" stroke="white" stroke-width="1"/>
+      </svg>
+
+      <!-- Wing shape lower-left -->
+      <svg class="deco" style="bottom:1200px;left:60px;width:90px;height:36px;opacity:0.12;transform:rotate(-8deg);" viewBox="0 0 90 36" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 28 Q30 2 90 10 L85 20 Q45 14 10 36 Z" fill="white"/>
+      </svg>
+
+      <!-- Propeller -->
+      <svg class="deco" style="top:240px;left:44px;width:54px;height:54px;opacity:0.13;transform:rotate(30deg);" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="27" cy="27" r="5" fill="white"/>
+        <ellipse cx="27" cy="10" rx="6" ry="16" fill="white" opacity="0.9"/>
+        <ellipse cx="27" cy="44" rx="6" ry="16" fill="white" opacity="0.9" transform="rotate(60 27 27)"/>
+        <ellipse cx="27" cy="44" rx="6" ry="16" fill="white" opacity="0.9" transform="rotate(-60 27 27)"/>
+      </svg>
+
+      <!-- Brand badge -->
+      <div class="brand-badge">
+        <div class="brand-icon">
+          <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M26 13v-2.5l-10 6.25V4.375C16 3.615 15.385 3 14.625 3S13.25 3.615 13.25 4.375V16.75l-10 3.125v2.5l10-3.125v5.5l-2.5 1.875V28l4.375-1.25L19.5 28v-1.875L17 24.625v-7.75L26 13z" fill="white"/>
+          </svg>
+        </div>
+        <span class="brand-name">SkyBrief</span>
+      </div>
+
+      <!-- Headline -->
+      <div class="headline-block" style="margin-top:52px;">
+        <h2>The Smarter Way to<br/>Brief Your Flight</h2>
+      </div>
+
+      <!-- Stat badges -->
+      <div class="stat-badges">
+        <!-- Badge 1: #1 Aviation Weather -->
+        <div class="stat-badge">
+          <div class="stat-badge-icon">
+            <!-- Laurel wreath SVG -->
+            <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+              <g fill="none" stroke="#2563eb" stroke-width="1.8">
+                <!-- Left laurel -->
+                <path d="M14 36 Q8 30 9 22 Q10 16 16 13" stroke-linecap="round"/>
+                <path d="M12 32 Q6 25 8 18" stroke-linecap="round"/>
+                <ellipse cx="11" cy="28" rx="4" ry="6" transform="rotate(-25 11 28)" fill="#dbeafe" stroke="#2563eb" stroke-width="1.2"/>
+                <ellipse cx="10" cy="22" rx="3.5" ry="5.5" transform="rotate(-15 10 22)" fill="#dbeafe" stroke="#2563eb" stroke-width="1.2"/>
+                <ellipse cx="13" cy="16" rx="3" ry="5" transform="rotate(5 13 16)" fill="#dbeafe" stroke="#2563eb" stroke-width="1.2"/>
+                <!-- Right laurel -->
+                <path d="M34 36 Q40 30 39 22 Q38 16 32 13" stroke-linecap="round"/>
+                <path d="M36 32 Q42 25 40 18" stroke-linecap="round"/>
+                <ellipse cx="37" cy="28" rx="4" ry="6" transform="rotate(25 37 28)" fill="#dbeafe" stroke="#2563eb" stroke-width="1.2"/>
+                <ellipse cx="38" cy="22" rx="3.5" ry="5.5" transform="rotate(15 38 22)" fill="#dbeafe" stroke="#2563eb" stroke-width="1.2"/>
+                <ellipse cx="35" cy="16" rx="3" ry="5" transform="rotate(-5 35 16)" fill="#dbeafe" stroke="#2563eb" stroke-width="1.2"/>
+                <!-- Bottom bow -->
+                <path d="M18 38 Q24 41 30 38" stroke-linecap="round"/>
+              </g>
+              <!-- Star -->
+              <text x="24" y="30" text-anchor="middle" font-size="18" font-weight="800" fill="#1d4ed8" font-family="system-ui">#1</text>
+            </svg>
+          </div>
+          <div class="stat-badge-text">
+            #1 Aviation
+            <span>Weather App</span>
+          </div>
+        </div>
+
+        <!-- Badge 2: 5-Star Rated -->
+        <div class="stat-badge">
+          <div class="stat-badge-icon">
+            <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+              <!-- 5 stars -->
+              <g fill="#f59e0b">
+                <polygon points="24,6 26.9,16.1 37.5,16.1 29,22.4 31.9,32.5 24,26.2 16.1,32.5 19,22.4 10.5,16.1 21.1,16.1" opacity="0.25"/>
+                <!-- 5 small stars row -->
+                <text x="24" y="32" text-anchor="middle" font-size="20" fill="#f59e0b" font-family="system-ui">★★★★★</text>
+              </g>
+            </svg>
+          </div>
+          <div class="stat-badge-text">
+            5-Star Rated
+            <span>by Student &amp; Private Pilots</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- iPhone mockup — centered, slight tilt -->
+      <div class="phone-container" style="bottom:0;transform:rotate(-1.5deg);filter:drop-shadow(0 48px 80px rgba(0,0,0,0.22)) drop-shadow(0 16px 32px rgba(0,0,0,0.12));">
+        <div class="phone-frame">
+          <div class="phone-screen">
+            <img src="briefing-top.png" alt="SkyBrief Weather Briefing Screen" />
+            <div class="screen-glare"></div>
+          </div>
+          <div class="dynamic-island"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 2 — Complete Weather at a Glance
+  ============================================================ -->
+  <div class="screen-wrapper">
+    <div class="screen-label">Screen 2 of 5 — Weather Briefing Detail</div>
+
+    <div class="preview-screen screen-2">
+
+      <!-- Radial depth overlays -->
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 70% 45% at 50% 0%,rgba(255,255,255,0.5) 0%,transparent 60%);z-index:1;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 50% 40% at 15% 55%,rgba(148,204,245,0.25) 0%,transparent 55%);z-index:1;pointer-events:none;"></div>
+
+      <!-- Curved decorative lines -->
+      <svg style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;" viewBox="0 0 1290 2796" xmlns="http://www.w3.org/2000/svg">
+        <path d="M -100 300 Q 300 100 650 250 Q 1000 400 1400 180" stroke="white" stroke-width="2.5" fill="none" opacity="0.17"/>
+        <path d="M -100 520 Q 350 340 700 460 Q 1050 580 1400 380" stroke="white" stroke-width="1.5" fill="none" opacity="0.10"/>
+        <path d="M 0 2400 Q 450 2250 900 2350 Q 1150 2400 1290 2300" stroke="white" stroke-width="2" fill="none" opacity="0.10"/>
+      </svg>
+
+      <!-- Airplane decorations -->
+      <svg class="deco" style="top:80px;right:100px;width:76px;height:76px;opacity:0.17;transform:rotate(22deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="top:320px;left:58px;width:52px;height:52px;opacity:0.13;transform:rotate(-30deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1300px;right:72px;width:44px;height:44px;opacity:0.15;transform:rotate(48deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1500px;left:44px;width:36px;height:36px;opacity:0.12;transform:rotate(-10deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+
+      <!-- Cloud decorations -->
+      <svg class="deco" style="top:60px;left:200px;width:150px;height:70px;opacity:0.15;" viewBox="0 0 150 70" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="75" cy="50" rx="65" ry="20" fill="white"/>
+        <ellipse cx="48" cy="40" rx="32" ry="26" fill="white"/>
+        <ellipse cx="90" cy="36" rx="38" ry="28" fill="white"/>
+        <ellipse cx="120" cy="44" rx="26" ry="20" fill="white"/>
+      </svg>
+      <svg class="deco" style="top:440px;right:52px;width:100px;height:48px;opacity:0.12;" viewBox="0 0 100 48" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="50" cy="34" rx="43" ry="14" fill="white"/>
+        <ellipse cx="32" cy="28" rx="22" ry="18" fill="white"/>
+        <ellipse cx="62" cy="26" rx="26" ry="19" fill="white"/>
+        <ellipse cx="80" cy="32" rx="18" ry="13" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1400px;left:38px;width:86px;height:42px;opacity:0.13;" viewBox="0 0 86 42" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="43" cy="30" rx="37" ry="12" fill="white"/>
+        <ellipse cx="27" cy="24" rx="19" ry="16" fill="white"/>
+        <ellipse cx="53" cy="22" rx="22" ry="17" fill="white"/>
+      </svg>
+
+      <!-- Compass rose -->
+      <svg class="deco" style="top:500px;left:88px;width:64px;height:64px;opacity:0.14;transform:rotate(-8deg);" viewBox="0 0 70 70" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="35" cy="35" r="32" fill="none" stroke="white" stroke-width="1.5"/>
+        <circle cx="35" cy="35" r="4" fill="white"/>
+        <polygon points="35,3 31,20 35,16 39,20" fill="white"/>
+        <polygon points="35,67 31,50 35,54 39,50" fill="white"/>
+        <polygon points="3,35 20,31 16,35 20,39" fill="white"/>
+        <polygon points="67,35 50,31 54,35 50,39" fill="white"/>
+        <line x1="13" y1="13" x2="20" y2="20" stroke="white" stroke-width="1.2"/>
+        <line x1="57" y1="13" x2="50" y2="20" stroke="white" stroke-width="1.2"/>
+        <line x1="13" y1="57" x2="20" y2="50" stroke="white" stroke-width="1.2"/>
+        <line x1="57" y1="57" x2="50" y2="50" stroke="white" stroke-width="1.2"/>
+      </svg>
+
+      <!-- Wing decoration -->
+      <svg class="deco" style="bottom:1250px;right:55px;width:86px;height:34px;opacity:0.12;transform:rotate(6deg);" viewBox="0 0 90 36" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 28 Q30 2 90 10 L85 20 Q45 14 10 36 Z" fill="white"/>
+      </svg>
+
+      <!-- Brand badge -->
+      <div class="brand-badge">
+        <div class="brand-icon" style="background:linear-gradient(135deg,#38bdf8 0%,#0284c7 100%);box-shadow:0 4px 20px rgba(56,189,248,0.35);">
+          <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M26 13v-2.5l-10 6.25V4.375C16 3.615 15.385 3 14.625 3S13.25 3.615 13.25 4.375V16.75l-10 3.125v2.5l10-3.125v5.5l-2.5 1.875V28l4.375-1.25L19.5 28v-1.875L17 24.625v-7.75L26 13z" fill="white"/>
+          </svg>
+        </div>
+        <span class="brand-name">SkyBrief</span>
+      </div>
+
+      <!-- Headline -->
+      <div class="headline-block" style="margin-top:52px;">
+        <h2>Complete Weather<br/>at a Glance</h2>
+      </div>
+
+      <!-- Floating Wind card -->
+      <div class="floating-card" style="left:52px;top:810px;transform:rotate(-3deg);">
+        <div class="floating-card-label">Wind</div>
+        <div class="floating-card-value">270°</div>
+        <div class="floating-card-unit">12 kt gusting 18</div>
+      </div>
+
+      <!-- Floating Ceiling card -->
+      <div class="floating-card" style="right:52px;top:920px;transform:rotate(2.5deg);">
+        <div class="floating-card-label">Ceiling</div>
+        <div class="floating-card-value">5,000<span style="font-size:20px;font-weight:600;color:rgba(26,26,46,0.5);margin-left:4px;">ft</span></div>
+        <div class="floating-card-unit">BKN — Broken</div>
+      </div>
+
+      <!-- iPhone mockup — slightly tilted other direction -->
+      <div class="phone-container" style="bottom:0;transform:rotate(1.2deg);filter:drop-shadow(0 44px 76px rgba(0,0,0,0.20)) drop-shadow(0 14px 28px rgba(0,0,0,0.10));">
+        <div class="phone-frame">
+          <div class="phone-screen">
+            <img src="briefing-3.png" alt="SkyBrief Cloud Layers Screen" />
+            <div class="screen-glare"></div>
+          </div>
+          <div class="dynamic-island"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 3 — AI-Powered Hazard Analysis
+  ============================================================ -->
+  <div class="screen-wrapper">
+    <div class="screen-label">Screen 3 of 5 — AI-Powered Insights</div>
+
+    <div class="preview-screen screen-3">
+
+      <!-- Radial depth overlays -->
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 75% 48% at 50% 0%,rgba(255,255,255,0.48) 0%,transparent 58%);z-index:1;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 55% 38% at 85% 60%,rgba(184,168,240,0.2) 0%,transparent 55%);z-index:1;pointer-events:none;"></div>
+
+      <!-- Curved decorative lines -->
+      <svg style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;" viewBox="0 0 1290 2796" xmlns="http://www.w3.org/2000/svg">
+        <path d="M -100 350 Q 300 120 680 280 Q 1060 440 1400 220" stroke="white" stroke-width="2.5" fill="none" opacity="0.16"/>
+        <path d="M 0 580 Q 400 380 780 500 Q 1100 600 1400 420" stroke="white" stroke-width="1.5" fill="none" opacity="0.10"/>
+        <path d="M -50 2350 Q 500 2180 1000 2280 Q 1200 2320 1350 2240" stroke="white" stroke-width="2" fill="none" opacity="0.10"/>
+      </svg>
+
+      <!-- Airplane decorations -->
+      <svg class="deco" style="top:96px;left:80px;width:80px;height:80px;opacity:0.18;transform:rotate(15deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="top:280px;right:76px;width:50px;height:50px;opacity:0.14;transform:rotate(-22deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1350px;left:56px;width:42px;height:42px;opacity:0.13;transform:rotate(38deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1180px;right:62px;width:34px;height:34px;opacity:0.15;transform:rotate(-45deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+
+      <!-- Cloud decorations -->
+      <svg class="deco" style="top:44px;right:180px;width:140px;height:66px;opacity:0.14;" viewBox="0 0 140 66" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="70" cy="46" rx="60" ry="20" fill="white"/>
+        <ellipse cx="44" cy="36" rx="30" ry="24" fill="white"/>
+        <ellipse cx="85" cy="32" rx="36" ry="26" fill="white"/>
+        <ellipse cx="112" cy="40" rx="24" ry="18" fill="white"/>
+      </svg>
+      <svg class="deco" style="top:460px;left:44px;width:108px;height:52px;opacity:0.12;" viewBox="0 0 108 52" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="54" cy="36" rx="46" ry="16" fill="white"/>
+        <ellipse cx="34" cy="28" rx="24" ry="20" fill="white"/>
+        <ellipse cx="68" cy="26" rx="28" ry="21" fill="white"/>
+        <ellipse cx="88" cy="34" rx="18" ry="14" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1420px;right:44px;width:80px;height:40px;opacity:0.13;" viewBox="0 0 80 40" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="40" cy="28" rx="34" ry="12" fill="white"/>
+        <ellipse cx="25" cy="22" rx="18" ry="15" fill="white"/>
+        <ellipse cx="50" cy="20" rx="20" ry="16" fill="white"/>
+      </svg>
+
+      <!-- Compass rose -->
+      <svg class="deco" style="top:380px;right:94px;width:72px;height:72px;opacity:0.16;transform:rotate(20deg);" viewBox="0 0 70 70" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="35" cy="35" r="32" fill="none" stroke="white" stroke-width="1.5"/>
+        <circle cx="35" cy="35" r="4" fill="white"/>
+        <polygon points="35,3 31,20 35,16 39,20" fill="white"/>
+        <polygon points="35,67 31,50 35,54 39,50" fill="white"/>
+        <polygon points="3,35 20,31 16,35 20,39" fill="white"/>
+        <polygon points="67,35 50,31 54,35 50,39" fill="white"/>
+        <line x1="13" y1="13" x2="20" y2="20" stroke="white" stroke-width="1.2"/>
+        <line x1="57" y1="13" x2="50" y2="20" stroke="white" stroke-width="1.2"/>
+        <line x1="13" y1="57" x2="20" y2="50" stroke="white" stroke-width="1.2"/>
+        <line x1="57" y1="57" x2="50" y2="50" stroke="white" stroke-width="1.2"/>
+      </svg>
+
+      <!-- Wing decoration -->
+      <svg class="deco" style="top:640px;left:48px;width:88px;height:34px;opacity:0.12;transform:rotate(-5deg);" viewBox="0 0 90 36" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 28 Q30 2 90 10 L85 20 Q45 14 10 36 Z" fill="white"/>
+      </svg>
+
+      <!-- Propeller decoration -->
+      <svg class="deco" style="bottom:1300px;right:80px;width:58px;height:58px;opacity:0.12;transform:rotate(-20deg);" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="27" cy="27" r="5" fill="white"/>
+        <ellipse cx="27" cy="10" rx="6" ry="16" fill="white" opacity="0.9"/>
+        <ellipse cx="27" cy="44" rx="6" ry="16" fill="white" opacity="0.9" transform="rotate(60 27 27)"/>
+        <ellipse cx="27" cy="44" rx="6" ry="16" fill="white" opacity="0.9" transform="rotate(-60 27 27)"/>
+      </svg>
+
+      <!-- Brand badge -->
+      <div class="brand-badge">
+        <div class="brand-icon" style="background:linear-gradient(135deg,#a78bfa 0%,#7c3aed 100%);box-shadow:0 4px 20px rgba(167,139,250,0.35);">
+          <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M26 13v-2.5l-10 6.25V4.375C16 3.615 15.385 3 14.625 3S13.25 3.615 13.25 4.375V16.75l-10 3.125v2.5l10-3.125v5.5l-2.5 1.875V28l4.375-1.25L19.5 28v-1.875L17 24.625v-7.75L26 13z" fill="white"/>
+          </svg>
+        </div>
+        <span class="brand-name">SkyBrief</span>
+      </div>
+
+      <!-- Headline -->
+      <div class="headline-block" style="margin-top:52px;">
+        <h2>AI-Powered<br/>Hazard Analysis</h2>
+      </div>
+
+      <!-- Floating "Instant Briefing" badge -->
+      <div class="floating-badge" style="top:830px;left:50%;transform:translateX(-50%) rotate(-2deg);">
+        <!-- Lightning bolt icon -->
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M13 2L4.5 13.5H11L10 22L19.5 10H13L13 2Z" fill="#f59e0b" stroke="#f59e0b" stroke-width="1" stroke-linejoin="round"/>
+        </svg>
+        Instant Briefing
+      </div>
+
+      <!-- iPhone mockup -->
+      <div class="phone-container" style="bottom:0;transform:rotate(-1deg);filter:drop-shadow(0 46px 78px rgba(0,0,0,0.21)) drop-shadow(0 15px 30px rgba(0,0,0,0.11));">
+        <div class="phone-frame">
+          <div class="phone-screen">
+            <img src="briefing-6.png" alt="SkyBrief AI Briefing Screen" />
+            <div class="screen-glare"></div>
+          </div>
+          <div class="dynamic-island"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 4 — Plan Your Route, Fly with Confidence
+  ============================================================ -->
+  <div class="screen-wrapper">
+    <div class="screen-label">Screen 4 of 5 — Route Planning</div>
+
+    <div class="preview-screen screen-4">
+
+      <!-- Radial depth overlays -->
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 72% 46% at 50% 0%,rgba(255,255,255,0.50) 0%,transparent 60%);z-index:1;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 52% 36% at 20% 65%,rgba(128,212,190,0.22) 0%,transparent 55%);z-index:1;pointer-events:none;"></div>
+
+      <!-- Curved decorative lines -->
+      <svg style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;" viewBox="0 0 1290 2796" xmlns="http://www.w3.org/2000/svg">
+        <path d="M -80 320 Q 320 100 670 260 Q 1020 420 1400 200" stroke="white" stroke-width="2.5" fill="none" opacity="0.17"/>
+        <path d="M 0 540 Q 360 360 720 480 Q 1080 600 1400 410" stroke="white" stroke-width="1.5" fill="none" opacity="0.10"/>
+        <!-- Decorative dashed flight path sweeping across background -->
+        <path d="M 80 520 Q 350 350 640 430 Q 900 500 1200 380" stroke="white" stroke-width="3" fill="none" stroke-dasharray="22,16" opacity="0.20"/>
+        <!-- Waypoint dots along route -->
+        <circle cx="80"   cy="520" r="9" fill="white" opacity="0.22"/>
+        <circle cx="320"  cy="420" r="7" fill="white" opacity="0.18"/>
+        <circle cx="560"  cy="440" r="7" fill="white" opacity="0.18"/>
+        <circle cx="800"  cy="470" r="7" fill="white" opacity="0.18"/>
+        <circle cx="1040" cy="415" r="7" fill="white" opacity="0.18"/>
+        <circle cx="1200" cy="380" r="9" fill="white" opacity="0.22"/>
+        <path d="M 100 2400 Q 600 2250 1150 2340" stroke="white" stroke-width="2" fill="none" opacity="0.10"/>
+      </svg>
+
+      <!-- Airplane decorations -->
+      <svg class="deco" style="top:88px;right:92px;width:82px;height:82px;opacity:0.18;transform:rotate(28deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="top:360px;left:62px;width:56px;height:56px;opacity:0.15;transform:rotate(-14deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1280px;right:68px;width:40px;height:40px;opacity:0.14;transform:rotate(52deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1460px;left:50px;width:32px;height:32px;opacity:0.13;transform:rotate(-8deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+
+      <!-- Cloud decorations -->
+      <svg class="deco" style="top:52px;left:180px;width:148px;height:70px;opacity:0.16;" viewBox="0 0 148 70" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="74" cy="50" rx="63" ry="20" fill="white"/>
+        <ellipse cx="46" cy="40" rx="31" ry="25" fill="white"/>
+        <ellipse cx="89" cy="36" rx="37" ry="27" fill="white"/>
+        <ellipse cx="116" cy="44" rx="25" ry="19" fill="white"/>
+      </svg>
+      <svg class="deco" style="top:430px;right:56px;width:104px;height:50px;opacity:0.13;" viewBox="0 0 104 50" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="52" cy="35" rx="44" ry="15" fill="white"/>
+        <ellipse cx="32" cy="27" rx="23" ry="19" fill="white"/>
+        <ellipse cx="65" cy="25" rx="27" ry="20" fill="white"/>
+        <ellipse cx="84" cy="32" rx="18" ry="13" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1360px;left:42px;width:90px;height:44px;opacity:0.13;" viewBox="0 0 90 44" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="45" cy="31" rx="38" ry="13" fill="white"/>
+        <ellipse cx="28" cy="25" rx="20" ry="17" fill="white"/>
+        <ellipse cx="56" cy="23" rx="23" ry="18" fill="white"/>
+      </svg>
+
+      <!-- Compass rose -->
+      <svg class="deco" style="top:280px;right:86px;width:68px;height:68px;opacity:0.15;transform:rotate(-5deg);" viewBox="0 0 70 70" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="35" cy="35" r="32" fill="none" stroke="white" stroke-width="1.5"/>
+        <circle cx="35" cy="35" r="4" fill="white"/>
+        <polygon points="35,3 31,20 35,16 39,20" fill="white"/>
+        <polygon points="35,67 31,50 35,54 39,50" fill="white"/>
+        <polygon points="3,35 20,31 16,35 20,39" fill="white"/>
+        <polygon points="67,35 50,31 54,35 50,39" fill="white"/>
+        <line x1="13" y1="13" x2="20" y2="20" stroke="white" stroke-width="1.2"/>
+        <line x1="57" y1="13" x2="50" y2="20" stroke="white" stroke-width="1.2"/>
+        <line x1="13" y1="57" x2="20" y2="50" stroke="white" stroke-width="1.2"/>
+        <line x1="57" y1="57" x2="50" y2="50" stroke="white" stroke-width="1.2"/>
+      </svg>
+
+      <!-- Wing decoration -->
+      <svg class="deco" style="bottom:1280px;right:52px;width:84px;height:34px;opacity:0.13;transform:rotate(10deg);" viewBox="0 0 90 36" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 28 Q30 2 90 10 L85 20 Q45 14 10 36 Z" fill="white"/>
+      </svg>
+
+      <!-- Propeller -->
+      <svg class="deco" style="top:600px;right:80px;width:56px;height:56px;opacity:0.12;transform:rotate(15deg);" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="27" cy="27" r="5" fill="white"/>
+        <ellipse cx="27" cy="10" rx="6" ry="16" fill="white" opacity="0.9"/>
+        <ellipse cx="27" cy="44" rx="6" ry="16" fill="white" opacity="0.9" transform="rotate(60 27 27)"/>
+        <ellipse cx="27" cy="44" rx="6" ry="16" fill="white" opacity="0.9" transform="rotate(-60 27 27)"/>
+      </svg>
+
+      <!-- Brand badge -->
+      <div class="brand-badge">
+        <div class="brand-icon" style="background:linear-gradient(135deg,#34d399 0%,#059669 100%);box-shadow:0 4px 20px rgba(52,211,153,0.35);">
+          <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M26 13v-2.5l-10 6.25V4.375C16 3.615 15.385 3 14.625 3S13.25 3.615 13.25 4.375V16.75l-10 3.125v2.5l10-3.125v5.5l-2.5 1.875V28l4.375-1.25L19.5 28v-1.875L17 24.625v-7.75L26 13z" fill="white"/>
+          </svg>
+        </div>
+        <span class="brand-name">SkyBrief</span>
+      </div>
+
+      <!-- Headline -->
+      <div class="headline-block" style="margin-top:52px;">
+        <h2>Plan Your Route,<br/>Fly with Confidence</h2>
+      </div>
+
+      <!-- iPhone mockup — slight opposite tilt -->
+      <div class="phone-container" style="bottom:0;transform:rotate(1.8deg);filter:drop-shadow(0 44px 76px rgba(0,0,0,0.20)) drop-shadow(0 14px 28px rgba(0,0,0,0.10));">
+        <div class="phone-frame">
+          <div class="phone-screen">
+            <img src="route-1.png" alt="SkyBrief Route Planning Screen" />
+            <div class="screen-glare"></div>
+          </div>
+          <div class="dynamic-island"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 5 — Weight & Balance Made Simple
+  ============================================================ -->
+  <div class="screen-wrapper">
+    <div class="screen-label">Screen 5 of 5 — Weight &amp; Balance</div>
+
+    <div class="preview-screen screen-5">
+
+      <!-- Radial depth overlays -->
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 74% 47% at 50% 0%,rgba(255,255,255,0.48) 0%,transparent 60%);z-index:1;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 54% 38% at 82% 62%,rgba(176,168,240,0.22) 0%,transparent 55%);z-index:1;pointer-events:none;"></div>
+
+      <!-- Curved decorative lines -->
+      <svg style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;" viewBox="0 0 1290 2796" xmlns="http://www.w3.org/2000/svg">
+        <path d="M -100 330 Q 310 110 660 270 Q 1010 430 1400 210" stroke="white" stroke-width="2.5" fill="none" opacity="0.17"/>
+        <path d="M 0 555 Q 380 370 750 490 Q 1100 600 1400 415" stroke="white" stroke-width="1.5" fill="none" opacity="0.10"/>
+        <!-- Subtle CG envelope hint in background -->
+        <polygon points="480,680 560,500 730,500 810,680" fill="none" stroke="white" stroke-width="2" opacity="0.07" stroke-linejoin="round"/>
+        <path d="M 100 2380 Q 550 2230 1100 2320" stroke="white" stroke-width="2" fill="none" opacity="0.10"/>
+      </svg>
+
+      <!-- Airplane decorations -->
+      <svg class="deco" style="top:84px;left:84px;width:78px;height:78px;opacity:0.18;transform:rotate(20deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="top:300px;right:80px;width:54px;height:54px;opacity:0.14;transform:rotate(-26deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1320px;right:65px;width:40px;height:40px;opacity:0.14;transform:rotate(44deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1500px;left:48px;width:34px;height:34px;opacity:0.13;transform:rotate(-12deg);" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M56 24l-4-4-20 12-6-14H20l4 14-10-2v4l10 4 2 10h4l6-10 20 6 4-4-20-10z" fill="white"/>
+      </svg>
+
+      <!-- Cloud decorations -->
+      <svg class="deco" style="top:48px;right:170px;width:144px;height:68px;opacity:0.15;" viewBox="0 0 144 68" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="72" cy="48" rx="61" ry="20" fill="white"/>
+        <ellipse cx="45" cy="38" rx="30" ry="24" fill="white"/>
+        <ellipse cx="87" cy="34" rx="36" ry="26" fill="white"/>
+        <ellipse cx="114" cy="42" rx="24" ry="18" fill="white"/>
+      </svg>
+      <svg class="deco" style="top:450px;left:48px;width:106px;height:52px;opacity:0.13;" viewBox="0 0 106 52" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="53" cy="36" rx="45" ry="16" fill="white"/>
+        <ellipse cx="33" cy="28" rx="24" ry="20" fill="white"/>
+        <ellipse cx="66" cy="26" rx="28" ry="21" fill="white"/>
+        <ellipse cx="86" cy="33" rx="18" ry="13" fill="white"/>
+      </svg>
+      <svg class="deco" style="bottom:1400px;right:46px;width:84px;height:42px;opacity:0.13;" viewBox="0 0 84 42" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="42" cy="29" rx="36" ry="13" fill="white"/>
+        <ellipse cx="26" cy="23" rx="19" ry="16" fill="white"/>
+        <ellipse cx="52" cy="21" rx="22" ry="17" fill="white"/>
+      </svg>
+
+      <!-- Compass rose -->
+      <svg class="deco" style="top:420px;right:96px;width:66px;height:66px;opacity:0.14;transform:rotate(16deg);" viewBox="0 0 70 70" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="35" cy="35" r="32" fill="none" stroke="white" stroke-width="1.5"/>
+        <circle cx="35" cy="35" r="4" fill="white"/>
+        <polygon points="35,3 31,20 35,16 39,20" fill="white"/>
+        <polygon points="35,67 31,50 35,54 39,50" fill="white"/>
+        <polygon points="3,35 20,31 16,35 20,39" fill="white"/>
+        <polygon points="67,35 50,31 54,35 50,39" fill="white"/>
+        <line x1="13" y1="13" x2="20" y2="20" stroke="white" stroke-width="1.2"/>
+        <line x1="57" y1="13" x2="50" y2="20" stroke="white" stroke-width="1.2"/>
+        <line x1="13" y1="57" x2="20" y2="50" stroke="white" stroke-width="1.2"/>
+        <line x1="57" y1="57" x2="50" y2="50" stroke="white" stroke-width="1.2"/>
+      </svg>
+
+      <!-- Wing decoration (balance theme) -->
+      <svg class="deco" style="top:620px;left:52px;width:90px;height:34px;opacity:0.13;transform:rotate(-4deg);" viewBox="0 0 90 36" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 28 Q30 2 90 10 L85 20 Q45 14 10 36 Z" fill="white"/>
+      </svg>
+      <!-- Mirror wing (balance theme) — flipped -->
+      <svg class="deco" style="top:620px;right:52px;width:90px;height:34px;opacity:0.13;transform:rotate(4deg) scaleX(-1);" viewBox="0 0 90 36" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 28 Q30 2 90 10 L85 20 Q45 14 10 36 Z" fill="white"/>
+      </svg>
+
+      <!-- Propeller / balance scale decoration -->
+      <svg class="deco" style="bottom:1300px;left:72px;width:58px;height:58px;opacity:0.12;transform:rotate(25deg);" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="27" cy="27" r="5" fill="white"/>
+        <ellipse cx="27" cy="10" rx="6" ry="16" fill="white" opacity="0.9"/>
+        <ellipse cx="27" cy="44" rx="6" ry="16" fill="white" opacity="0.9" transform="rotate(60 27 27)"/>
+        <ellipse cx="27" cy="44" rx="6" ry="16" fill="white" opacity="0.9" transform="rotate(-60 27 27)"/>
+      </svg>
+
+      <!-- Brand badge -->
+      <div class="brand-badge">
+        <div class="brand-icon" style="background:linear-gradient(135deg,#818cf8 0%,#4f46e5 100%);box-shadow:0 4px 20px rgba(129,140,248,0.35);">
+          <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M26 13v-2.5l-10 6.25V4.375C16 3.615 15.385 3 14.625 3S13.25 3.615 13.25 4.375V16.75l-10 3.125v2.5l10-3.125v5.5l-2.5 1.875V28l4.375-1.25L19.5 28v-1.875L17 24.625v-7.75L26 13z" fill="white"/>
+          </svg>
+        </div>
+        <span class="brand-name">SkyBrief</span>
+      </div>
+
+      <!-- Headline -->
+      <div class="headline-block" style="margin-top:52px;">
+        <h2>Weight &amp; Balance<br/>Made Simple</h2>
+      </div>
+
+      <!-- Floating "Within Limits" checkmark badge -->
+      <div class="floating-badge" style="top:830px;left:50%;transform:translateX(-50%) rotate(2deg);">
+        <!-- Checkmark circle icon -->
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="14" fill="#10b981" opacity="0.15"/>
+          <circle cx="16" cy="16" r="14" stroke="#10b981" stroke-width="2"/>
+          <path d="M9 16.5L13.5 21L23 11.5" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Within Limits
+      </div>
+
+      <!-- iPhone mockup -->
+      <div class="phone-container" style="bottom:0;transform:rotate(-1.4deg);filter:drop-shadow(0 46px 80px rgba(0,0,0,0.21)) drop-shadow(0 15px 30px rgba(0,0,0,0.11));">
+        <div class="phone-frame">
+          <div class="phone-screen">
+            <img src="wb-2.png" alt="SkyBrief Weight and Balance Screen" />
+            <div class="screen-glare"></div>
+          </div>
+          <div class="dynamic-island"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+</html>

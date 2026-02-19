@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   },
   headerText: {
     fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -193,8 +193,8 @@ const styles = StyleSheet.create({
     color: colors.ifr,
   },
   ceilingLabel: {
-    fontSize: 8,
-    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    fontFamily: "SpaceGrotesk_700Bold",
     color: colors.ifr,
     letterSpacing: 1,
     marginTop: 2,

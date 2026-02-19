@@ -134,40 +134,39 @@ export function calculateNavLog(
   trueAirspeed: number,
   fuelBurnRate: number
 ): NavLog {
+  // Guard against NaN/undefined inputs from stale persisted state
+  const safeTAS = typeof trueAirspeed === "number" && !isNaN(trueAirspeed) && trueAirspeed > 0
+    ? trueAirspeed
+    : 122; // Cessna 172S default
+  const safeFuelRate = typeof fuelBurnRate === "number" && !isNaN(fuelBurnRate) && fuelBurnRate > 0
+    ? fuelBurnRate
+    : 8.4; // Cessna 172S default
+
   const navLogLegs: NavLogLeg[] = legs.map((leg) => {
     const wind = getWindForLeg(leg, weatherPoints);
     // Guard: bearing must be a valid number (undefined/NaN bearing → use 0)
     const safeBearing = typeof leg.bearing === "number" && !isNaN(leg.bearing) ? leg.bearing : 0;
     const wca = calculateWindCorrectionAngle(
-      trueAirspeed,
+      safeTAS,
       safeBearing,
       wind.windDirection,
       wind.windSpeed
     );
     const trueHeading = (safeBearing + wca + 360) % 360; // Normalize to 0-359
     const groundSpeed = calculateGroundSpeed(
-      trueAirspeed,
+      safeTAS,
       safeBearing,
       wind.windDirection,
       wind.windSpeed
     );
-    console.log('[NavLog leg]', {
-      from: leg.from.icao,
-      to: leg.to.icao,
-      TAS: trueAirspeed,
-      windDir: wind.windDirection,
-      windSpeed: wind.windSpeed,
-      WCA: wca,
-      GS: groundSpeed,
-    });
     // Prevent division by zero and NaN values
     const timeEnroute =
       groundSpeed > 0 && leg.distanceNm > 0
         ? (leg.distanceNm / groundSpeed) * 60
         : 0; // minutes
     const fuelBurn =
-      timeEnroute > 0 && fuelBurnRate > 0
-        ? (timeEnroute / 60) * fuelBurnRate
+      timeEnroute > 0 && safeFuelRate > 0
+        ? (timeEnroute / 60) * safeFuelRate
         : 0; // gallons
 
     return {
@@ -177,7 +176,7 @@ export function calculateNavLog(
       distanceNm: leg.distanceNm,
       windDirection: wind.windDirection,
       windSpeed: wind.windSpeed,
-      trueAirspeed,
+      trueAirspeed: safeTAS,
       windCorrectionAngle: wca,
       trueHeading: Math.round(trueHeading),
       groundSpeed,

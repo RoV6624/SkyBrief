@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { zustandMMKVStorage } from "@/services/storage";
 import { saveUserProfile, getUserProfile } from "@/services/firebase";
 import { useUserStore } from "./user-store";
+import { useMonitorStore } from "./monitor-store";
 
 interface AuthUser {
   uid: string;
@@ -15,6 +16,7 @@ interface AuthStore {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isAdmin: boolean;
   onboardingComplete: boolean;
   completedOnboardingUsers: string[]; // Track UIDs of users who completed onboarding
   setUser: (user: AuthUser | null) => void;
@@ -30,6 +32,7 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       isAuthenticated: false,
       isLoading: true,
+      isAdmin: false,
       onboardingComplete: false,
       completedOnboardingUsers: [],
       setUser: async (user) => {
@@ -66,14 +69,17 @@ export const useAuthStore = create<AuthStore>()(
           // Save to Firestore
           try {
             const userStoreState = useUserStore.getState();
+            const monitorState = useMonitorStore.getState();
             await saveUserProfile({
               uid: user.uid,
-              name: userStoreState.name || user.displayName || "",
+              name: userStoreState.pilotName || user.displayName || "",
               email: user.email || "",
               homeAirport: userStoreState.homeAirport,
               experienceLevel: userStoreState.experienceLevel,
-              defaultAircraft: userStoreState.defaultAircraft,
+              defaultAircraft: userStoreState.defaultAircraft ?? "",
               onboardingComplete: true,
+              minimumsEnabled: monitorState.minimumsEnabled,
+              personalMinimums: monitorState.personalMinimums,
             });
             console.log("[Auth] User profile saved to Firestore");
           } catch (error) {
@@ -98,16 +104,31 @@ export const useAuthStore = create<AuthStore>()(
             userStore.setDefaultAircraft(profile.defaultAircraft);
             userStore.markConfigured();
 
+            // Restore minimums into monitor store
+            if (profile.minimumsEnabled !== undefined) {
+              const monitorStore = useMonitorStore.getState();
+              monitorStore.setMinimumsEnabled(profile.minimumsEnabled);
+              if (profile.personalMinimums) {
+                for (const [key, value] of Object.entries(profile.personalMinimums)) {
+                  monitorStore.setPersonalMinimum(
+                    key as keyof typeof profile.personalMinimums,
+                    value
+                  );
+                }
+              }
+            }
+
             // Update auth state
             set((state) => ({
               onboardingComplete: true,
+              isAdmin: profile?.role === "admin",
               completedOnboardingUsers: state.completedOnboardingUsers.includes(uid)
                 ? state.completedOnboardingUsers
                 : [...state.completedOnboardingUsers, uid],
             }));
           } else {
             console.log("[Auth] No existing profile found or onboarding not complete");
-            set({ onboardingComplete: false });
+            set({ onboardingComplete: false, isAdmin: false });
           }
         } catch (error) {
           console.error("[Auth] Failed to load user profile:", error);
@@ -121,6 +142,7 @@ export const useAuthStore = create<AuthStore>()(
         set({
           user: null,
           isAuthenticated: false,
+          isAdmin: false,
           onboardingComplete: false,
           // Keep completedOnboardingUsers so users don't have to onboard again
         }),

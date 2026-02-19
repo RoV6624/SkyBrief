@@ -27,8 +27,11 @@ import {
   Lock,
   ChevronDown,
   Fuel,
+  BarChart3,
+  ChevronRight,
 } from "lucide-react-native";
 
+import { useRouter } from "expo-router";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUserStore } from "@/stores/user-store";
 import { useMonitorStore } from "@/stores/monitor-store";
@@ -57,9 +60,11 @@ import { CustomAircraftModal } from "@/components/aircraft/CustomAircraftModal";
 import { DynamicSkyBackground } from "@/components/background/DynamicSkyBackground";
 import { colors } from "@/theme/tokens";
 import { getAirportData } from "@/services/airport-data";
+import { useContentWidth } from "@/hooks/useContentWidth";
 
 export default function SettingsScreen() {
-  const { user, signOut: authSignOut } = useAuthStore();
+  const router = useRouter();
+  const { user, isAdmin, signOut: authSignOut } = useAuthStore();
   const {
     pilotName,
     email,
@@ -79,6 +84,7 @@ export default function SettingsScreen() {
     useMonitorStore();
   const { mode, setMode } = useThemeStore();
   const { isDark, theme } = useTheme();
+  const contentWidth = useContentWidth();
   const { fuelUnit, toggleFuelUnit } = useWBStore();
   const { scene } = useSceneStore();
   const {
@@ -179,7 +185,7 @@ export default function SettingsScreen() {
                       {
                         text: "Confirm",
                         style: "destructive",
-                        onPress: async (password) => {
+                        onPress: async (password: string | undefined) => {
                           if (!password) return;
                           try {
                             await reauthenticateWithEmail(password);
@@ -293,7 +299,7 @@ export default function SettingsScreen() {
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, contentWidth ? { maxWidth: contentWidth } : undefined]}
           showsVerticalScrollIndicator={false}
         >
           {/* Header */}
@@ -891,6 +897,26 @@ export default function SettingsScreen() {
             </CloudCard>
           </Animated.View>
 
+          {/* Admin Dashboard */}
+          {isAdmin && (
+            <Animated.View entering={FadeInDown.delay(300)} style={styles.gap}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push("/admin/dashboard" as any);
+                }}
+                style={({ pressed }) => [
+                  styles.adminBtn,
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <BarChart3 size={18} color={colors.stratus[500]} />
+                <Text style={styles.adminBtnText}>Admin Dashboard</Text>
+                <ChevronRight size={16} color={colors.stratus[400]} />
+              </Pressable>
+            </Animated.View>
+          )}
+
           {/* Sign Out */}
           <Animated.View entering={FadeInDown.delay(325)} style={styles.gap}>
             <Pressable
@@ -962,7 +988,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     color: "#ffffff",
     textShadowColor: "rgba(0,0,0,0.15)",
     textShadowOffset: { width: 0, height: 2 },
@@ -977,7 +1003,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     color: colors.stratus[700],
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1246,6 +1272,23 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(12,140,233,0.1)",
     marginVertical: 10,
   },
+  adminBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(12,140,233,0.06)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(12,140,233,0.12)",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  adminBtnText: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: colors.stratus[700],
+  },
   signOutBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1284,7 +1327,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   homeAirportAlias: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: 'JetBrainsMono_400Regular',
     color: colors.stratus[500],
     fontStyle: 'italic',

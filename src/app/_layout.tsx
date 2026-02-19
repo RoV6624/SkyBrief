@@ -16,10 +16,17 @@ import {
   JetBrainsMono_600SemiBold,
   JetBrainsMono_700Bold,
 } from "@expo-google-fonts/jetbrains-mono";
+import {
+  SpaceGrotesk_400Regular,
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from "@expo-google-fonts/space-grotesk";
 import * as SplashScreen from "expo-splash-screen";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUserStore } from "@/stores/user-store";
 import { onAuthStateChanged } from "@/services/firebase";
+import { trackAppOpen } from "@/services/analytics";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import "../global.css";
@@ -74,6 +81,13 @@ function RootNavigator() {
     useUserStore.getState().migrateHomeAirport();
   }, []);
 
+  // Track app open for analytics
+  useEffect(() => {
+    if (isAuthenticated && !isLoading && useAuthStore.getState().user?.uid) {
+      trackAppOpen(useAuthStore.getState().user!.uid);
+    }
+  }, [isAuthenticated, isLoading]);
+
   // Force navigation when auth state changes
   useEffect(() => {
     // Don't navigate while loading profile - prevents flash of onboarding screen
@@ -89,7 +103,7 @@ function RootNavigator() {
     } else if (isAuthenticated && !onboardingComplete && segments[0] !== "onboarding") {
       console.log("[Auth] Navigating to onboarding screen");
       router.push("/onboarding" as any); // Type assertion for Expo Router compatibility
-    } else if (isAuthenticated && onboardingComplete && segments[0] !== "(tabs)") {
+    } else if (isAuthenticated && onboardingComplete && segments[0] !== "(tabs)" && segments[0] !== "admin") {
       console.log("[Auth] Navigating to main app");
       router.push("/(tabs)" as any); // Type assertion for Expo Router compatibility
     }
@@ -109,7 +123,10 @@ function RootNavigator() {
         ) : !onboardingComplete ? (
           <Stack.Screen name="onboarding" />
         ) : (
-          <Stack.Screen name="(tabs)" />
+          <>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="admin" />
+          </>
         )}
       </Stack>
     </>
@@ -125,6 +142,10 @@ export default function RootLayout() {
     JetBrainsMono_400Regular,
     JetBrainsMono_600SemiBold,
     JetBrainsMono_700Bold,
+    SpaceGrotesk_400Regular,
+    SpaceGrotesk_500Medium,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
   });
 
   const onLayoutRootView = useCallback(async () => {

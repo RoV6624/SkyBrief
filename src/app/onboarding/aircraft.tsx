@@ -1,15 +1,25 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useState } from "react";
+import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { Plane, ChevronRight, Check } from "lucide-react-native";
+import { Plane, ChevronRight, Check, Plus } from "lucide-react-native";
 import { useUserStore } from "@/stores/user-store";
 import { AIRCRAFT_DATABASE } from "@/lib/wb/aircraft-types";
+import type { CustomAircraftProfile } from "@/lib/wb/aircraft-types";
+import { StepProgressBar } from "@/components/onboarding/StepProgressBar";
+import { CustomAircraftModal } from "@/components/aircraft/CustomAircraftModal";
 
 export default function AircraftScreen() {
   const router = useRouter();
-  const { defaultAircraft, setDefaultAircraft } = useUserStore();
+  const {
+    defaultAircraft,
+    setDefaultAircraft,
+    customAircraft,
+    addCustomAircraft,
+  } = useUserStore();
+  const [showCustomModal, setShowCustomModal] = useState(false);
 
   const handleNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -18,12 +28,15 @@ export default function AircraftScreen() {
 
   return (
     <LinearGradient
-      colors={["#1e90ff", "#87ceeb", "#e0efff"]}
+      colors={["#1e90ff", "#87ceeb", "#b0d4f1"]}
       style={styles.container}
     >
-      <View style={styles.scroll}>
-        <Animated.View entering={FadeInDown.delay(100)} style={styles.step}>
-          <Text style={styles.stepText}>Step 3 of 4</Text>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View entering={FadeInDown.delay(100)}>
+          <StepProgressBar currentStep={3} />
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200)}>
@@ -97,6 +110,74 @@ export default function AircraftScreen() {
               </Animated.View>
             );
           })}
+
+          {/* Custom aircraft cards */}
+          {customAircraft.map((ac) => {
+            const isSelected = defaultAircraft === ac.id;
+            return (
+              <Animated.View key={ac.id} entering={FadeInDown}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setDefaultAircraft(ac.id);
+                  }}
+                  style={[
+                    styles.acCard,
+                    isSelected && styles.acCardSelected,
+                  ]}
+                >
+                  <View style={styles.acHeader}>
+                    <View>
+                      <Text
+                        style={[
+                          styles.acName,
+                          isSelected && styles.acNameSelected,
+                        ]}
+                      >
+                        {ac.nickname}
+                      </Text>
+                      <Text style={styles.acDetail}>
+                        Empty: {ac.emptyWeight} lbs • Max: {ac.maxGrossWeight} lbs
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <View style={styles.checkCircle}>
+                        <Check size={14} color="#1e90ff" strokeWidth={3} />
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.acStats}>
+                    <View style={styles.acStat}>
+                      <Text style={styles.acStatLabel}>TAS</Text>
+                      <Text style={styles.acStatValue}>{ac.cruiseTAS} kt</Text>
+                    </View>
+                    <View style={styles.acStat}>
+                      <Text style={styles.acStatLabel}>Burn</Text>
+                      <Text style={styles.acStatValue}>{ac.fuelBurnGPH} gph</Text>
+                    </View>
+                    <View style={styles.acStat}>
+                      <Text style={styles.acStatLabel}>Custom</Text>
+                      <Text style={styles.acStatValue}>Yes</Text>
+                    </View>
+                  </View>
+                </Pressable>
+              </Animated.View>
+            );
+          })}
+
+          {/* Add Custom Aircraft button */}
+          <Animated.View entering={FadeInDown.delay(550)}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowCustomModal(true);
+              }}
+              style={styles.addCustomCard}
+            >
+              <Plus size={20} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.addCustomText}>Add Custom Aircraft</Text>
+            </Pressable>
+          </Animated.View>
         </Animated.View>
 
         <View style={styles.footer}>
@@ -113,7 +194,17 @@ export default function AircraftScreen() {
             </Pressable>
           </Animated.View>
         </View>
-      </View>
+      </ScrollView>
+
+      <CustomAircraftModal
+        visible={showCustomModal}
+        onClose={() => setShowCustomModal(false)}
+        onSave={(profile: CustomAircraftProfile) => {
+          addCustomAircraft(profile);
+          setDefaultAircraft(profile.id);
+          setShowCustomModal(false);
+        }}
+      />
     </LinearGradient>
   );
 }
@@ -121,21 +212,13 @@ export default function AircraftScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 32,
     paddingTop: 80,
     paddingBottom: 40,
     maxWidth: 500,
     width: "100%",
     alignSelf: "center",
-  },
-  step: { marginBottom: 24 },
-  stepText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    color: "rgba(255,255,255,0.5)",
-    textTransform: "uppercase",
-    letterSpacing: 1,
   },
   headerRow: {
     flexDirection: "row",
@@ -204,8 +287,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   acStatLabel: {
-    fontSize: 9,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: 10,
+    fontFamily: "SpaceGrotesk_600SemiBold",
     color: "rgba(255,255,255,0.5)",
     textTransform: "uppercase",
     marginBottom: 2,
@@ -237,5 +320,21 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontFamily: "Inter_700Bold",
     color: "#1e90ff",
+  },
+  addCustomCard: {
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.25)",
+    borderStyle: "dashed",
+    padding: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  addCustomText: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.7)",
   },
 });

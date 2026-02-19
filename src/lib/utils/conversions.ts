@@ -68,3 +68,14 @@ export function inHgToHpa(inHg: number): number {
 export function hpaToInHg(hpa: number): number {
   return Math.round((hpa / 33.8639) * 100) / 100; // 2 decimal places
 }
+
+// ─── Time Formatting ───────────────────────────────────────────────────────
+
+export function formatMinutesToHM(minutes: number): string {
+  if (isNaN(minutes) || minutes < 0) return "---";
+  const rounded = Math.round(minutes);
+  if (rounded < 60) return `${rounded}m`;
+  const h = Math.floor(rounded / 60);
+  const m = rounded % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}

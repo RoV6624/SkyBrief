@@ -12,20 +12,25 @@
  *
  * Flight Types:
  * - VFR: Uses corridor search to find real navaids (VOR/NDB/GPS fixes) along route
- * - IFR: Attempts airways routing first, falls back to corridor search
+ *        with airport fallback — never generates synthetic WPT00 identifiers
+ * - IFR: Dijkstra-based multi-airway pathfinding, falls back to corridor search
  */
 
 import { getAirportData } from "@/services/airport-data";
 import type { AirportData } from "@/lib/airport/types";
-import { calculateBearing as calcBearing } from "@/lib/interpolation/haversine";
+import { haversineDistance } from "@/lib/interpolation/haversine";
 import { navaidDataService } from "@/services/navaid-data";
 import { airwaysDataService } from "@/services/airways-data";
+import { findNearbyStations } from "@/lib/route/nearby-stations";
 import type {
   GeneratedWaypoint,
   RouteGenerationOptions,
   NavaidData,
   WaypointType,
 } from "@/lib/route/types";
+
+// Airway transition penalty (nm equivalent) to discourage excessive airway changes
+const AIRWAY_TRANSITION_PENALTY = 20;
 
 /**
  * Generate waypoints between departure and destination airports
@@ -50,7 +55,7 @@ export async function generateWaypoints(
   }
 
   // Calculate total distance
-  const totalDistance = calculateDistance(
+  const totalDistance = haversineDistance(
     departure.latitude_deg,
     departure.longitude_deg,
     destination.latitude_deg,
@@ -76,8 +81,8 @@ export async function generateWaypoints(
 
 /**
  * Generate direct (great circle) route with evenly spaced waypoints
- * Supports VFR corridor search for real navaid waypoints
- * IFR flights attempt airways routing first
+ * VFR: Corridor search with navaid preference scoring + airport fallback
+ * IFR: Dijkstra multi-airway pathfinding, falls back to corridor search
  */
 function generateDirectRoute(
   departure: AirportData,
@@ -85,18 +90,18 @@ function generateDirectRoute(
   options: RouteGenerationOptions
 ): GeneratedWaypoint[] {
   const flightType = options.flightType || "VFR";
-  const corridorWidthNm = options.corridorWidthNm || 10;
+  const corridorWidthNm = options.corridorWidthNm || 30;
 
   console.log(`[WaypointGen] Flight type: ${flightType}, Corridor width: ${corridorWidthNm}nm`);
 
-  // IFR: Try airways routing first
+  // IFR: Try Dijkstra multi-airway routing first
   if (flightType === "IFR") {
     const airwaysRoute = generateIFRRoute(departure, destination, options);
     if (airwaysRoute.length > 0) {
       console.log("[WaypointGen] Using IFR airways routing");
       return airwaysRoute;
     }
-    console.log("[WaypointGen] No airways found, falling back to VFR corridor search");
+    console.log("[WaypointGen] No airways found, falling back to corridor search");
   }
 
   const waypoints: GeneratedWaypoint[] = [];
@@ -110,7 +115,7 @@ function generateDirectRoute(
     name: departure.name,
   });
 
-  const totalDistance = calculateDistance(
+  const totalDistance = haversineDistance(
     departure.latitude_deg,
     departure.longitude_deg,
     destination.latitude_deg,
@@ -118,7 +123,7 @@ function generateDirectRoute(
   );
 
   // Determine number of intermediate waypoints
-  const maxSegment = options.maxSegmentNm || 50;
+  const maxSegment = options.maxSegmentNm || 80;
   const numSegments = Math.ceil(totalDistance / maxSegment);
 
   console.log(`[WaypointGen] Creating ${numSegments} segments (${totalDistance.toFixed(1)}nm total)`);
@@ -137,7 +142,7 @@ function generateDirectRoute(
   }
 
   // Generate synthetic waypoints along great circle
-  const syntheticPoints: Array<{lat: number, lon: number}> = [];
+  const syntheticPoints: Array<{ lat: number; lon: number }> = [];
   for (let i = 1; i < numSegments; i++) {
     const fraction = i / numSegments;
     const point = interpolateGreatCircle(
@@ -150,64 +155,99 @@ function generateDirectRoute(
     syntheticPoints.push(point);
   }
 
-  // VFR: Try to find real navaids along corridor
-  if (flightType === "VFR" || flightType === "IFR") {
-    const pathPoints = [
-      { lat: departure.latitude_deg, lon: departure.longitude_deg },
-      ...syntheticPoints,
-      { lat: destination.latitude_deg, lon: destination.longitude_deg },
-    ];
+  // Corridor search: find real navaids along path
+  const pathPoints = [
+    { lat: departure.latitude_deg, lon: departure.longitude_deg },
+    ...syntheticPoints,
+    { lat: destination.latitude_deg, lon: destination.longitude_deg },
+  ];
 
-    // Find navaids within corridor
-    const corridorNavaids = navaidDataService.findNavaidsAlongPath(
-      pathPoints,
-      corridorWidthNm
-    );
+  // Find navaids within corridor
+  const corridorNavaids = navaidDataService.findNavaidsAlongPath(
+    pathPoints,
+    corridorWidthNm
+  );
 
-    console.log(`[WaypointGen] Found ${corridorNavaids.length} navaids in ${corridorWidthNm}nm corridor`);
+  console.log(`[WaypointGen] Found ${corridorNavaids.length} navaids in ${corridorWidthNm}nm corridor`);
 
-    // For each synthetic point, try to replace with closest real navaid
-    for (let i = 0; i < syntheticPoints.length; i++) {
-      const synthetic = syntheticPoints[i];
+  // Track used identifiers to prevent duplicates
+  const usedIdentifiers = new Set<string>([departure.icao, destination.icao]);
 
-      // Find closest navaid to this point
-      const closest = findClosestNavaid(synthetic, corridorNavaids);
+  // For each synthetic point, try to replace with real navaid or airport
+  for (let i = 0; i < syntheticPoints.length; i++) {
+    const synthetic = syntheticPoints[i];
 
-      // Use real navaid if within reasonable detour (20% of segment length)
-      const detourTolerance = maxSegment * 0.2;
+    // Detour tolerance: 50% of segment length, but at least 20nm
+    // (with 25nm segments, 12.5nm is too small since VORs average ~60nm apart)
+    const detourTolerance = Math.max(maxSegment * 0.5, 20);
 
-      if (closest && isReasonableDetour(synthetic, closest, detourTolerance)) {
-        // Use real navaid
-        waypoints.push({
-          identifier: closest.identifier,
-          latitude_deg: closest.latitude_deg,
-          longitude_deg: closest.longitude_deg,
-          type: mapNavaidTypeToWaypointType(closest.type),
-          name: closest.name,
-        });
-        console.log(`[WaypointGen] Using navaid ${closest.identifier} (${closest.type})`);
+    // Find best navaid (with VOR preference scoring) that isn't already used
+    const bestNavaid = findBestNavaid(synthetic, corridorNavaids, usedIdentifiers, detourTolerance);
+
+    if (bestNavaid) {
+      // Minimum 10nm spacing check to prevent clustering
+      const lastWp = waypoints[waypoints.length - 1];
+      const distFromPrev = haversineDistance(
+        lastWp.latitude_deg,
+        lastWp.longitude_deg,
+        bestNavaid.latitude_deg,
+        bestNavaid.longitude_deg
+      );
+      if (distFromPrev < 10) {
+        console.log(`[WaypointGen] Skipping ${bestNavaid.identifier} — too close to previous (${distFromPrev.toFixed(1)}nm)`);
       } else {
-        // Fall back to synthetic waypoint
+        usedIdentifiers.add(bestNavaid.identifier);
         waypoints.push({
-          identifier: `WPT${String(i).padStart(2, "0")}`,
-          latitude_deg: synthetic.lat,
-          longitude_deg: synthetic.lon,
-          type: "gps",
-          name: `GPS Waypoint ${i}`,
+          identifier: bestNavaid.identifier,
+          latitude_deg: bestNavaid.latitude_deg,
+          longitude_deg: bestNavaid.longitude_deg,
+          type: mapNavaidTypeToWaypointType(bestNavaid.type),
+          name: bestNavaid.name,
         });
-        console.log(`[WaypointGen] No suitable navaid found, using WPT${String(i).padStart(2, "0")}`);
+        console.log(`[WaypointGen] Using navaid ${bestNavaid.identifier} (${bestNavaid.type})`);
+        continue;
       }
     }
-  } else {
-    // Non-VFR/IFR: Use synthetic waypoints
-    for (let i = 0; i < syntheticPoints.length; i++) {
-      waypoints.push({
-        identifier: `WPT${String(i).padStart(2, "0")}`,
-        latitude_deg: syntheticPoints[i].lat,
-        longitude_deg: syntheticPoints[i].lon,
-        type: "gps",
-      });
+
+    // Airport fallback: find nearest airport within tolerance
+    const nearbyAirports = findNearbyStations(
+      synthetic.lat,
+      synthetic.lon,
+      detourTolerance,
+      5
+    );
+
+    const unusedAirport = nearbyAirports.find(
+      (a) => !usedIdentifiers.has(a.icao) && a.icao.length === 4
+    );
+
+    if (unusedAirport) {
+      // Minimum 10nm spacing check for airports too
+      const lastWp = waypoints[waypoints.length - 1];
+      const distFromPrev = haversineDistance(
+        lastWp.latitude_deg,
+        lastWp.longitude_deg,
+        unusedAirport.lat,
+        unusedAirport.lon
+      );
+      if (distFromPrev < 10) {
+        console.log(`[WaypointGen] Skipping airport ${unusedAirport.icao} — too close to previous (${distFromPrev.toFixed(1)}nm)`);
+      } else {
+        usedIdentifiers.add(unusedAirport.icao);
+        waypoints.push({
+          identifier: unusedAirport.icao,
+          latitude_deg: unusedAirport.lat,
+          longitude_deg: unusedAirport.lon,
+          type: "airport",
+          name: unusedAirport.name,
+        });
+        console.log(`[WaypointGen] Using airport fallback ${unusedAirport.icao}`);
+        continue;
+      }
     }
+
+    // Skip this point entirely — never produce synthetic WPT00 identifiers
+    console.log(`[WaypointGen] No real waypoint found for segment ${i}, skipping`);
   }
 
   // Add destination
@@ -219,7 +259,7 @@ function generateDirectRoute(
     name: destination.name,
   });
 
-  console.log(`[WaypointGen] Generated ${waypoints.length} waypoints`);
+  console.log(`[WaypointGen] Generated ${waypoints.length} waypoints (all real identifiers)`);
   return waypoints;
 }
 
@@ -233,103 +273,225 @@ function generateAirwaysRoute(
   options: RouteGenerationOptions
 ): GeneratedWaypoint[] {
   console.log("[WaypointGen] Attempting airways routing");
-
-  // Set flight type to IFR for airways routing
   const ifrOptions = { ...options, flightType: "IFR" as const };
   return generateDirectRoute(departure, destination, ifrOptions);
 }
 
 /**
- * IFR Airways Routing Algorithm
- * Attempts to find published airways between departure and destination
+ * IFR Airways Routing — Dijkstra-based multi-airway pathfinding
+ *
+ * Builds a graph from all airways (nodes = fixes, edges = consecutive fixes
+ * on the same airway) and runs Dijkstra from navaids near departure to
+ * navaids near destination. Airway transitions incur a penalty to keep
+ * routes simple.
  */
 function generateIFRRoute(
   departure: AirportData,
   destination: AirportData,
-  options: RouteGenerationOptions
+  _options: RouteGenerationOptions
 ): GeneratedWaypoint[] {
-  const searchRadiusNm = 30; // Search radius for nearby airways
+  const searchRadiusNm = 100;
 
-  // Step 1: Find navaids near departure and destination
+  // Build graph from all airways
+  const graph = airwaysDataService.buildGraph();
+
+  if (graph.size === 0) {
+    console.log("[IFR Routing] Empty airways graph");
+    return [];
+  }
+
+  // Find fixes near departure and destination that exist in the graph
   const departureNavaids = navaidDataService.findNavaidsNear(
     departure.latitude_deg,
     departure.longitude_deg,
     searchRadiusNm
   );
-
   const destinationNavaids = navaidDataService.findNavaidsNear(
     destination.latitude_deg,
     destination.longitude_deg,
     searchRadiusNm
   );
 
-  console.log(`[IFR Routing] Found ${departureNavaids.length} navaids near departure`);
-  console.log(`[IFR Routing] Found ${destinationNavaids.length} navaids near destination`);
+  // Filter to only navaids that are in the airway graph
+  let depOnGraph = departureNavaids.filter((n) => graph.has(n.identifier));
+  let destOnGraph = destinationNavaids.filter((n) => graph.has(n.identifier));
 
-  // Step 2: Try to find direct airway connection between nearby navaids
-  for (const depNavaid of departureNavaids) {
-    for (const destNavaid of destinationNavaids) {
-      const connections = airwaysDataService.findConnectingAirways(
-        depNavaid.identifier,
-        destNavaid.identifier
-      );
+  // C2: Last-resort — find globally nearest graph node within 150nm
+  if (depOnGraph.length === 0) {
+    const closest = airwaysDataService.findClosestAirwayWaypoint(
+      departure.latitude_deg,
+      departure.longitude_deg
+    );
+    if (closest && closest.distance <= 150 && graph.has(closest.segment.fix_identifier)) {
+      depOnGraph = [{
+        identifier: closest.segment.fix_identifier,
+        name: closest.segment.fix_identifier,
+        type: "FIX" as const,
+        latitude_deg: closest.segment.latitude_deg,
+        longitude_deg: closest.segment.longitude_deg,
+      }];
+    }
+  }
+  if (destOnGraph.length === 0) {
+    const closest = airwaysDataService.findClosestAirwayWaypoint(
+      destination.latitude_deg,
+      destination.longitude_deg
+    );
+    if (closest && closest.distance <= 150 && graph.has(closest.segment.fix_identifier)) {
+      destOnGraph = [{
+        identifier: closest.segment.fix_identifier,
+        name: closest.segment.fix_identifier,
+        type: "FIX" as const,
+        latitude_deg: closest.segment.latitude_deg,
+        longitude_deg: closest.segment.longitude_deg,
+      }];
+    }
+  }
 
-      if (connections.length > 0) {
-        // Found a direct airway connection!
-        const connection = connections[0]; // Use shortest airway
-        console.log(`[IFR Routing] Found airway ${connection.airway.id} connecting ${depNavaid.identifier} → ${destNavaid.identifier}`);
+  console.log(`[IFR Routing] ${depOnGraph.length} departure navaids on airways, ${destOnGraph.length} destination navaids on airways`);
 
-        // Build waypoint list from airway segments
-        const waypoints: GeneratedWaypoint[] = [];
+  if (depOnGraph.length === 0 || destOnGraph.length === 0) {
+    return [];
+  }
 
-        // Add departure airport
-        waypoints.push({
-          identifier: departure.icao,
-          latitude_deg: departure.latitude_deg,
-          longitude_deg: departure.longitude_deg,
-          type: "airport",
-          name: departure.name,
-        });
+  // C3: Limit seed nodes to nearest 5 to avoid flooding Dijkstra
+  depOnGraph = depOnGraph.slice(0, 5);
+  destOnGraph = destOnGraph.slice(0, 5);
 
-        // Add airway waypoints
-        const segments = airwaysDataService.getAirwaySegment(
-          connection.airway.id,
-          connection.fromIndex,
-          connection.toIndex
-        );
+  // Create set of destination fix identifiers for fast lookup
+  const destFixIds = new Set(destOnGraph.map((n) => n.identifier));
 
-        for (const segment of segments) {
-          waypoints.push({
-            identifier: segment.fix_identifier,
-            latitude_deg: segment.latitude_deg,
-            longitude_deg: segment.longitude_deg,
-            type: "fix",
-            name: `${segment.fix_identifier} (${connection.airway.id})`,
-            airway: connection.airway.id,
-          });
+  // Dijkstra: find shortest path from any departure fix to any destination fix
+  // dist map: fixId → best distance so far
+  const dist = new Map<string, number>();
+  // prev map: fixId → { from: fixId, airway: string }
+  const prev = new Map<string, { from: string; airway: string }>();
+  // Priority queue as sorted array (simple implementation, adequate for ~2000 nodes)
+  const pq: Array<{ id: string; cost: number; airway: string }> = [];
+
+  // Seed with departure navaids
+  for (const nav of depOnGraph) {
+    const startCost = haversineDistance(
+      departure.latitude_deg,
+      departure.longitude_deg,
+      nav.latitude_deg,
+      nav.longitude_deg
+    );
+    dist.set(nav.identifier, startCost);
+    pq.push({ id: nav.identifier, cost: startCost, airway: "" });
+  }
+
+  // Sort initial queue
+  pq.sort((a, b) => a.cost - b.cost);
+
+  let foundDest: string | null = null;
+
+  while (pq.length > 0) {
+    const current = pq.shift()!;
+
+    // Skip if we already found a better path to this node
+    if (current.cost > (dist.get(current.id) ?? Infinity)) {
+      continue;
+    }
+
+    // Check if we reached a destination fix
+    if (destFixIds.has(current.id)) {
+      foundDest = current.id;
+      break;
+    }
+
+    // Explore neighbors
+    const edges = graph.get(current.id) || [];
+    for (const edge of edges) {
+      // Add transition penalty if switching airways
+      const transitionPenalty =
+        current.airway && current.airway !== edge.airway
+          ? AIRWAY_TRANSITION_PENALTY
+          : 0;
+
+      const newCost = current.cost + edge.distance + transitionPenalty;
+
+      if (newCost < (dist.get(edge.to) ?? Infinity)) {
+        dist.set(edge.to, newCost);
+        prev.set(edge.to, { from: current.id, airway: edge.airway });
+
+        // Binary insert into sorted pq
+        let lo = 0;
+        let hi = pq.length;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (pq[mid].cost < newCost) lo = mid + 1;
+          else hi = mid;
         }
-
-        // Add destination airport
-        waypoints.push({
-          identifier: destination.icao,
-          latitude_deg: destination.latitude_deg,
-          longitude_deg: destination.longitude_deg,
-          type: "airport",
-          name: destination.name,
-        });
-
-        console.log(`[IFR Routing] Generated ${waypoints.length} waypoints via ${connection.airway.id}`);
-        return waypoints;
+        pq.splice(lo, 0, { id: edge.to, cost: newCost, airway: edge.airway });
       }
     }
   }
 
-  // Step 3: No direct airways found
-  console.log("[IFR Routing] No direct airways found");
+  if (!foundDest) {
+    console.log("[IFR Routing] Dijkstra found no path");
+    return [];
+  }
 
-  // TODO: Future enhancement - multi-airway routing with A* pathfinding
-  // For now, return empty array to trigger fallback to corridor search
-  return [];
+  // Reconstruct path
+  const path: Array<{ fixId: string; airway: string }> = [];
+  let current = foundDest;
+  while (prev.has(current)) {
+    const p = prev.get(current)!;
+    path.unshift({ fixId: current, airway: p.airway });
+    current = p.from;
+  }
+  // Add the start node (no airway for the first hop)
+  path.unshift({ fixId: current, airway: "" });
+
+  console.log(`[IFR Routing] Dijkstra path: ${path.map((p) => p.fixId).join(" → ")}`);
+
+  // Build waypoint list
+  const waypoints: GeneratedWaypoint[] = [];
+
+  // Add departure airport
+  waypoints.push({
+    identifier: departure.icao,
+    latitude_deg: departure.latitude_deg,
+    longitude_deg: departure.longitude_deg,
+    type: "airport",
+    name: departure.name,
+  });
+
+  // Add airway fixes
+  for (const step of path) {
+    const navaid = navaidDataService.getNavaid(step.fixId);
+    const coords = navaid
+      ? { lat: navaid.latitude_deg, lon: navaid.longitude_deg }
+      : airwaysDataService.getFixCoords(step.fixId);
+
+    if (!coords) continue;
+
+    const airwayLabel = step.airway || undefined;
+    waypoints.push({
+      identifier: step.fixId,
+      latitude_deg: coords.lat,
+      longitude_deg: coords.lon,
+      type: navaid ? mapNavaidTypeToWaypointType(navaid.type) : "fix",
+      name: airwayLabel ? `${step.fixId} (${airwayLabel})` : step.fixId,
+      airway: airwayLabel,
+    });
+  }
+
+  // Add destination airport
+  waypoints.push({
+    identifier: destination.icao,
+    latitude_deg: destination.latitude_deg,
+    longitude_deg: destination.longitude_deg,
+    type: "airport",
+    name: destination.name,
+  });
+
+  // Collect unique airways used for logging
+  const airwaysUsed = [...new Set(path.map((p) => p.airway).filter(Boolean))];
+  console.log(`[IFR Routing] Generated ${waypoints.length} waypoints via ${airwaysUsed.join(", ") || "direct"}`);
+
+  return waypoints;
 }
 
 /**
@@ -340,11 +502,10 @@ function generateTerrainAvoidanceRoute(
   destination: AirportData,
   options: RouteGenerationOptions
 ): GeneratedWaypoint[] {
-  // For now, use direct route with higher waypoint density
   console.log("[WaypointGen] Terrain avoidance using higher waypoint density");
   return generateDirectRoute(departure, destination, {
     ...options,
-    maxSegmentNm: 25, // More waypoints for terrain tracking
+    maxSegmentNm: 25,
   });
 }
 
@@ -356,35 +517,8 @@ function generateWeatherAvoidanceRoute(
   destination: AirportData,
   options: RouteGenerationOptions
 ): GeneratedWaypoint[] {
-  // For now, fall back to direct route
-  // Full implementation would fetch weather radar and route around
   console.log("[WaypointGen] Weather avoidance not yet implemented, using direct route");
   return generateDirectRoute(departure, destination, options);
-}
-
-/**
- * Calculate great circle distance between two points (Haversine formula)
- * Returns distance in nautical miles
- */
-function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
-  const R = 3440.065; // Earth radius in nautical miles
-  const dLat = toRadians(lat2 - lat1);
-  const dLon = toRadians(lon2 - lon1);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
 }
 
 /**
@@ -407,6 +541,10 @@ function interpolateGreatCircle(
     Math.sin(lat1Rad) * Math.sin(lat2Rad) +
       Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.cos(lon2Rad - lon1Rad)
   );
+
+  if (d === 0) {
+    return { lat: lat1, lon: lon1 };
+  }
 
   const a = Math.sin((1 - fraction) * d) / Math.sin(d);
   const b = Math.sin(fraction * d) / Math.sin(d);
@@ -465,62 +603,53 @@ function formatCoordinate(decimal: number, isLatitude: boolean): string {
 // Helper Functions for VFR Corridor Routing
 // ──────────────────────────────────────────────────────────────────
 
-/**
- * Find the closest navaid to a given point from a list of candidates
- */
-function findClosestNavaid(
-  point: {lat: number, lon: number},
-  candidates: NavaidData[]
-): NavaidData | null {
-  if (candidates.length === 0) {
-    return null;
-  }
+/** Navaid preference score — higher is better. VOR/VORTAC preferred for VFR. */
+function navaidScore(navaid: NavaidData): number {
+  const t = navaid.type.toUpperCase();
+  if (t === "VORTAC") return 4;
+  if (t === "VOR-DME") return 3;
+  if (t === "VOR") return 2;
+  if (t === "NDB") return 1;
+  if (t === "FIX") return 0; // Lowest priority, used only when no VOR/NDB nearby
+  return 0;
+}
 
-  let closest = candidates[0];
-  let minDistance = calculateDistance(
-    point.lat,
-    point.lon,
-    closest.latitude_deg,
-    closest.longitude_deg
-  );
+/**
+ * Find the best navaid near a point from a list of candidates.
+ * Prefers VOR/VORTAC over NDB, skips already-used identifiers,
+ * and respects detour tolerance.
+ */
+function findBestNavaid(
+  point: { lat: number; lon: number },
+  candidates: NavaidData[],
+  usedIdentifiers: Set<string>,
+  toleranceNm: number
+): NavaidData | null {
+  let best: NavaidData | null = null;
+  let bestScore = -Infinity;
 
   for (const navaid of candidates) {
-    const distance = calculateDistance(
+    if (usedIdentifiers.has(navaid.identifier)) continue;
+
+    const dist = haversineDistance(
       point.lat,
       point.lon,
       navaid.latitude_deg,
       navaid.longitude_deg
     );
 
-    if (distance < minDistance) {
-      minDistance = distance;
-      closest = navaid;
+    if (dist > toleranceNm) continue;
+
+    // Score: preference bonus minus distance penalty (1 point per 5nm)
+    const score = navaidScore(navaid) * 5 - dist;
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = navaid;
     }
   }
 
-  return closest;
-}
-
-/**
- * Check if using a navaid would result in a reasonable detour
- * @param plannedPoint - Original synthetic waypoint position
- * @param actualNavaid - Actual navaid being considered
- * @param toleranceNm - Maximum acceptable detour distance in nautical miles
- * @returns true if detour is within tolerance
- */
-function isReasonableDetour(
-  plannedPoint: {lat: number, lon: number},
-  actualNavaid: NavaidData,
-  toleranceNm: number
-): boolean {
-  const detour = calculateDistance(
-    plannedPoint.lat,
-    plannedPoint.lon,
-    actualNavaid.latitude_deg,
-    actualNavaid.longitude_deg
-  );
-
-  return detour <= toleranceNm;
+  return best;
 }
 
 /**
@@ -533,6 +662,5 @@ function mapNavaidTypeToWaypointType(navaidType: string): WaypointType {
   if (type.includes("NDB")) return "ndb";
   if (type === "GPS" || type === "FIX") return "fix";
 
-  // Default to GPS for unknown types
   return "gps";
 }

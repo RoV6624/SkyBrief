@@ -60,7 +60,7 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
     },
     headerText: {
       fontSize: 11,
-      fontFamily: "Inter_600SemiBold",
+      fontFamily: "SpaceGrotesk_600SemiBold",
       color: isDark ? theme.foreground : colors.stratus[700],
       textTransform: "uppercase",
       letterSpacing: 0.5,
@@ -149,8 +149,8 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
       marginBottom: 4,
     },
     th: {
-      fontSize: 9,
-      fontFamily: "Inter_600SemiBold",
+      fontSize: 10,
+      fontFamily: "SpaceGrotesk_600SemiBold",
       color: isDark ? "rgba(255,255,255,0.6)" : colors.stratus[600],
       textTransform: "uppercase",
       textAlign: "right",
@@ -207,8 +207,8 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
       marginLeft: 4,
     },
     unitText: {
-      fontSize: 9,
-      fontFamily: "Inter_600SemiBold",
+      fontSize: 10,
+      fontFamily: "SpaceGrotesk_600SemiBold",
       color: isDark ? "rgba(255,255,255,0.7)" : colors.stratus[600],
     },
     totalRow: {

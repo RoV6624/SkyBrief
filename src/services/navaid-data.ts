@@ -6,6 +6,7 @@
  */
 
 import navaidDatabase from "@/data/navaid-database.json";
+import vfrWaypointsDatabase from "@/data/vfr-waypoints-database.json";
 import type { NavaidData } from "@/lib/route/types";
 import { haversineDistance } from "@/lib/interpolation/haversine";
 
@@ -14,15 +15,24 @@ class NavaidDataService {
   private spatialIndex: NavaidData[];  // Array for spatial queries
 
   constructor() {
-    // Convert database object to Map for fast lookup
+    // Convert navaid database to Map for fast lookup
     this.navaids = new Map(
       Object.entries(navaidDatabase).map(([id, data]) => [id, data as NavaidData])
     );
 
+    // Merge VFR waypoints (only add if not already in navaids to avoid overwriting VOR/NDB entries)
+    let vfrCount = 0;
+    for (const [id, data] of Object.entries(vfrWaypointsDatabase)) {
+      if (!this.navaids.has(id)) {
+        this.navaids.set(id, data as NavaidData);
+        vfrCount++;
+      }
+    }
+
     // Create array for spatial filtering
     this.spatialIndex = Array.from(this.navaids.values());
 
-    console.log(`[NavaidData] Loaded ${this.navaids.size} navaids`);
+    console.log(`[NavaidData] Loaded ${Object.keys(navaidDatabase).length} navaids + ${vfrCount} VFR waypoints = ${this.navaids.size} total`);
   }
 
   /**

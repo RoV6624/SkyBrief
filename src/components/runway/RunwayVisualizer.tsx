@@ -1,8 +1,23 @@
 import { View, Text, StyleSheet } from "react-native";
 import Svg, { Rect, Line, Polygon, G, Text as SvgText } from "react-native-svg";
 
-import { calculateRunwayWind } from "@/lib/runway/visualizer";
 import { colors } from "@/theme/tokens";
+
+/** Calculate headwind/crosswind components for a given runway and wind */
+function calculateRunwayWind(
+  runwayHeading: number,
+  windDirection: number | "VRB",
+  windSpeed: number
+) {
+  if (windDirection === "VRB" || windSpeed === 0) {
+    return { headwindComponent: 0, crosswindComponent: 0, windDirection: 0 };
+  }
+  const windDir = typeof windDirection === "number" ? windDirection : 0;
+  const angleDiff = ((windDir - runwayHeading + 360) % 360) * (Math.PI / 180);
+  const headwind = Math.round(windSpeed * Math.cos(angleDiff));
+  const crosswind = Math.round(windSpeed * Math.sin(angleDiff));
+  return { headwindComponent: headwind, crosswindComponent: crosswind, windDirection: windDir };
+}
 import { useTheme } from "@/theme/ThemeProvider";
 import { InteractiveRunwaySelector } from "./InteractiveRunwaySelector";
 
@@ -48,23 +63,12 @@ export function RunwayVisualizer({
   const xColor     = absX > 15 ? colors.ifr : absX > 10 ? colors.mvfr : colors.vfr;
   const hColor = runwayData.headwindComponent >= 0 ? colors.vfr : colors.ifr;
 
-  // Dark text variants for better contrast on light backgrounds
-  const getDarkTextColor = (bgColor: string) => {
-    if (bgColor === colors.vfr) return "#065f46";   // Dark green
-    if (bgColor === colors.mvfr) return "#92400e";  // Dark amber
-    if (bgColor === colors.ifr) return "#991b1b";   // Dark red
-    return bgColor;
-  };
-
-  const xTextColor = getDarkTextColor(xColor);
-  const hTextColor = getDarkTextColor(hColor);
-
-  // "right crosswind 5 kt" = 5 kt crosswind component from the right side of the runway
+  // "5R" = 5 kt crosswind component from the right side of the runway
   const crossLabel =
     runwayData.crosswindComponent > 0
-      ? `right crosswind ${runwayData.crosswindComponent} kt`
+      ? `${runwayData.crosswindComponent} kt R`
       : runwayData.crosswindComponent < 0
-      ? `left crosswind ${Math.abs(runwayData.crosswindComponent)} kt`
+      ? `${Math.abs(runwayData.crosswindComponent)} kt L`
       : "0 kt";
 
   const headLabel = `${runwayData.headwindComponent >= 0 ? "+" : ""}${runwayData.headwindComponent} kt`;
@@ -163,8 +167,8 @@ export function RunwayVisualizer({
                   />
                   {/* "12kts @ 270°" label with dark background rect */}
                   <Rect
-                    x={cX - 32} y={arrowTipY - 22}
-                    width={64} height={14} rx={3}
+                    x={cX - 24} y={arrowTipY - 22}
+                    width={48} height={14} rx={3}
                     fill="rgba(0,0,0,0.55)"
                   />
                   <SvgText
@@ -190,7 +194,7 @@ export function RunwayVisualizer({
         <View
           style={[
             styles.badge,
-            { backgroundColor: `${xColor}25`, borderColor: `${xColor}45` },
+            { backgroundColor: `${xColor}18`, borderColor: `${xColor}45` },
           ]}
         >
           <Text
@@ -202,13 +206,13 @@ export function RunwayVisualizer({
             CROSSWIND
           </Text>
           {/* R = from the right, L = from the left */}
-          <Text style={[styles.badgeValue, { color: xTextColor }]}>{crossLabel}</Text>
+          <Text style={[styles.badgeValue, { color: xColor }]}>{crossLabel}</Text>
         </View>
 
         <View
           style={[
             styles.badge,
-            { backgroundColor: `${hColor}25`, borderColor: `${hColor}45` },
+            { backgroundColor: `${hColor}18`, borderColor: `${hColor}45` },
           ]}
         >
           <Text
@@ -219,7 +223,7 @@ export function RunwayVisualizer({
           >
             {runwayData.headwindComponent >= 0 ? "HEADWIND" : "TAILWIND"}
           </Text>
-          <Text style={[styles.badgeValue, { color: hTextColor }]}>{headLabel}</Text>
+          <Text style={[styles.badgeValue, { color: hColor }]}>{headLabel}</Text>
         </View>
       </View>
     </View>
@@ -257,13 +261,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     marginTop: 12,
-    paddingHorizontal: 6,
   },
   badge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 8,
+    gap: 6,
+    paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
     borderWidth: 1,
@@ -271,10 +274,10 @@ const styles = StyleSheet.create({
   badgeLabel: {
     fontSize: 9,
     fontFamily: "Inter_600SemiBold",
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
   },
   badgeValue: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: "JetBrainsMono_700Bold",
   },
 });

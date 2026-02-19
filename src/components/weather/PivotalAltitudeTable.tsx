@@ -141,7 +141,7 @@ export function PivotalAltitudeTable({
   }
 
   return (
-    <CloudCard>
+    <CloudCard style={{ padding: 16 }}>
       <Text
         style={[
           styles.title,
@@ -269,7 +269,7 @@ export function PivotalAltitudeTable({
 const styles = StyleSheet.create({
   title: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "SpaceGrotesk_700Bold",
     marginBottom: 4,
   },
   subtitle: {

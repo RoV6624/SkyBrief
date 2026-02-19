@@ -39,11 +39,11 @@ export function AiBriefingCard({ briefing }: AiBriefingCardProps) {
       <CloudCard>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Brain size={14} color={colors.stratus[500]} />
+            <Brain size={14} color={colors.accent} />
             <Text
               style={[
                 styles.headerText,
-                { color: isDark ? "rgba(255,255,255,0.85)" : colors.stratus[700] },
+                { color: colors.accent },
               ]}
             >
               AI Briefing
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   },
   headerText: {
     fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   },
   hazardsTitle: {
     fontSize: 10,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 4,

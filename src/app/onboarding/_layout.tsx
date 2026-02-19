@@ -6,10 +6,10 @@ export default function OnboardingLayout() {
       screenOptions={{
         headerShown: false,
         animation: "slide_from_right",
-        gestureEnabled: false,
+        gestureEnabled: true,
       }}
     >
-      <Stack.Screen name="profile" />
+      <Stack.Screen name="profile" options={{ gestureEnabled: false }} />
       <Stack.Screen name="minimums" />
       <Stack.Screen name="aircraft" />
       <Stack.Screen name="permissions" />

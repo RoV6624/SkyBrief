@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Native build artifacts
+ios/Pods/
+ios/build/
+ios/DerivedData/
+
+# Metro
+.metro-health-check*
+
+# Logs
+*.log
+tmux-*.log
+
+# Build artifacts
+.next/
+coverage/
+build/
+build-release/
+build-test/
+
+# macOS
+.DS_Store
+
+# Test screenshots
+simulator-tests/
+
+# Editor/IDE
+.null.swp
+*.swp
+*.swo
+
+# Misc
+.metadata_never_index
+.claude/
+.git/
