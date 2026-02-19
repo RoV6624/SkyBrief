@@ -29,6 +29,7 @@ import { useUserStore } from "@/stores/user-store";
 import { onAuthStateChanged } from "@/services/firebase";
 import { trackAppOpen } from "@/services/analytics";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { registerBackgroundWeatherTask } from "@/services/background-weather-task";
 
 import "../global.css";
 
@@ -80,6 +81,11 @@ function RootNavigator() {
   // Run home airport migration on app load
   useEffect(() => {
     useUserStore.getState().migrateHomeAirport();
+  }, []);
+
+  // Register background weather monitoring task
+  useEffect(() => {
+    registerBackgroundWeatherTask();
   }, []);
 
   // Track app open for analytics

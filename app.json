@@ -44,7 +44,9 @@
         }
       ],
       "./plugins/withFirebaseModularHeaders",
-      "./plugins/withAppIcons"
+      "./plugins/withAppIcons",
+      "expo-background-fetch",
+      "expo-task-manager"
     ],
     "runtimeVersion": "1.0.0",
     "experiments": {

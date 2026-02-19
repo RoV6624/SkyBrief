@@ -237,6 +237,9 @@ export interface UserProfile {
   personalMinimums?: PersonalMinimums;
   role?: "user" | "admin";
   lastActiveAt?: Date;
+  timezone?: string;
+  dailyBriefingEnabled?: boolean;
+  pushToken?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -818,6 +821,15 @@ export async function saveUserProfile(profile: Partial<UserProfile> & { uid: str
           : {}),
         // Preserve role — never overwrite from client
         ...(existing?.role ? { role: jsToFirestoreValue(existing.role) } : {}),
+        ...(profile.timezone || existing?.timezone
+          ? { timezone: jsToFirestoreValue(profile.timezone ?? existing?.timezone ?? "") }
+          : {}),
+        ...(profile.dailyBriefingEnabled !== undefined || existing?.dailyBriefingEnabled !== undefined
+          ? { dailyBriefingEnabled: jsToFirestoreValue(profile.dailyBriefingEnabled ?? existing?.dailyBriefingEnabled ?? false) }
+          : {}),
+        ...(profile.pushToken || existing?.pushToken
+          ? { pushToken: jsToFirestoreValue(profile.pushToken ?? existing?.pushToken ?? "") }
+          : {}),
         createdAt: jsToFirestoreValue(existing?.createdAt ?? now),
         updatedAt: jsToFirestoreValue(now),
       },

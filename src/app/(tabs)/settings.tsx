@@ -64,6 +64,8 @@ import { DynamicSkyBackground } from "@/components/background/DynamicSkyBackgrou
 import { colors } from "@/theme/tokens";
 import { getAirportData } from "@/services/airport-data";
 import { useContentWidth } from "@/hooks/useContentWidth";
+import { saveUserProfile } from "@/services/firebase";
+import { Mail } from "lucide-react-native";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -111,6 +113,9 @@ export default function SettingsScreen() {
 
   // ── Delete Account state ──────────────────────────────────────────────────
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // ── Daily Email Briefing state ─────────────────────────────────────────────
+  const [dailyEmailEnabled, setDailyEmailEnabled] = useState(false);
 
   // ── Home Airport Display state ─────────────────────────────────────────────
   const [homeAirportName, setHomeAirportName] = useState<string>("");
@@ -838,8 +843,48 @@ export default function SettingsScreen() {
             </CloudCard>
           </Animated.View>
 
+          {/* Daily Email Briefing */}
+          <Animated.View entering={FadeInDown.delay(260)} style={styles.gap}>
+            <CloudCard>
+              <View style={styles.sectionHeader}>
+                <Mail size={14} color={colors.stratus[500]} />
+                <Text style={[styles.sectionTitle, { color: dynamicColors.sectionTitle }]}>Daily Email Briefing</Text>
+                <Pressable
+                  onPress={async () => {
+                    Haptics.selectionAsync();
+                    const newVal = !dailyEmailEnabled;
+                    setDailyEmailEnabled(newVal);
+                    try {
+                      const uid = user?.uid;
+                      if (uid) {
+                        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                        await saveUserProfile({ uid, timezone, dailyBriefingEnabled: newVal } as any);
+                      }
+                    } catch {}
+                  }}
+                  style={[
+                    styles.togglePill,
+                    dailyEmailEnabled && styles.togglePillActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.toggleText,
+                      dailyEmailEnabled && styles.toggleTextActive,
+                    ]}
+                  >
+                    {dailyEmailEnabled ? "ON" : "OFF"}
+                  </Text>
+                </Pressable>
+              </View>
+              <Text style={[styles.profileLabel, { color: dynamicColors.profileLabel }]}>
+                Receive a daily weather briefing for your home airport at 8 AM local time.
+              </Text>
+            </CloudCard>
+          </Animated.View>
+
           {/* Instructor Dashboard */}
-          <Animated.View entering={FadeInDown.delay(265)} style={styles.gap}>
+          <Animated.View entering={FadeInDown.delay(270)} style={styles.gap}>
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

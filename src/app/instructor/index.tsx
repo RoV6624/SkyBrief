@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Users, BarChart3, BookOpen, Calendar } from "lucide-react-native";
+import { ClipboardList, Users, BarChart3, BookOpen, Calendar, Send } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 
@@ -190,6 +190,34 @@ export default function InstructorReviewScreen() {
                     ]}
                   >
                     Manage lesson scheduling
+                  </Text>
+                </View>
+              </CloudCard>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push("/instructor/dispatch-queue");
+              }}
+            >
+              <CloudCard>
+                <View style={styles.quickAction}>
+                  <Send size={16} color={colors.accent} />
+                  <Text
+                    style={[
+                      styles.quickActionText,
+                      { color: isDark ? "#FFFFFF" : colors.stratus[800] },
+                    ]}
+                  >
+                    Dispatch Queue
+                  </Text>
+                  <Text
+                    style={[
+                      styles.quickActionSub,
+                      { color: isDark ? "rgba(255,255,255,0.4)" : colors.stratus[500] },
+                    ]}
+                  >
+                    Review and approve student dispatches
                   </Text>
                 </View>
               </CloudCard>

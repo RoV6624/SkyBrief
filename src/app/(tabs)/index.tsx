@@ -62,6 +62,11 @@ import { RunwayWindCard } from "@/components/runway/RunwayWindCard";
 import { useRunways } from "@/hooks/useRunways";
 import { PivotalAltitudeTable } from "@/components/weather/PivotalAltitudeTable";
 import { CloudCard } from "@/components/ui/CloudCard";
+import { StartPreflightButton } from "@/components/briefing/StartPreflightButton";
+import { PreflightMonitor } from "@/components/briefing/PreflightMonitor";
+import { DispatchFlow } from "@/components/dispatch/DispatchFlow";
+import { useTenantStore } from "@/stores/tenant-store";
+import { usePreflightStore } from "@/stores/preflight-store";
 
 import { mapMetarToScene } from "@/lib/weather/scene-mapper";
 import { evaluateMinimums } from "@/lib/minimums/evaluate";
@@ -662,6 +667,27 @@ export default function BriefingScreen() {
                   aircraftType={defaultAircraft || "Unknown"}
                   metar={metar}
                   minimumsResult={minimumsResult ?? undefined}
+                />
+              )}
+
+              {/* Start Preflight Button */}
+              {metar && selectedStation && (
+                <StartPreflightButton
+                  station={selectedStation}
+                  metar={metar}
+                />
+              )}
+
+              {/* Active Preflight Monitor */}
+              {usePreflightStore.getState().isPreflightActive && (
+                <PreflightMonitor />
+              )}
+
+              {/* Dispatch Flow (for school students) */}
+              {metar && selectedStation && useTenantStore.getState().isSchoolMode && (
+                <DispatchFlow
+                  station={selectedStation}
+                  metar={metar}
                 />
               )}
 

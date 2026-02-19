@@ -55,6 +55,7 @@ export async function getTenantConfig(tenantId: string): Promise<TenantConfig | 
         studentProgress: fields.studentProgress ?? true,
         schoolAnalytics: fields.schoolAnalytics ?? true,
         lessonPlans: fields.lessonPlans ?? false,
+        dispatch: fields.dispatch ?? false,
       },
       defaultTemplateIds: [],
     };

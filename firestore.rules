@@ -10,10 +10,15 @@ service cloud.firestore {
     }
 
     // User profiles - users can read/write their own profile; admins can read any
+    // Users cannot set/change their own role (only admins can)
     match /users/{userId} {
       allow read: if request.auth != null
         && (request.auth.uid == userId || isAdmin());
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId
+        && !('role' in request.resource.data);
+      allow update: if request.auth != null && request.auth.uid == userId
+        && (!('role' in request.resource.data.diff(resource.data).affectedKeys())
+            || isAdmin());
     }
 
     // Fuel prices - authenticated read/write with field validation
@@ -50,6 +55,19 @@ service cloud.firestore {
     match /metrics/{docId} {
       allow read: if isAdmin();
       allow write: if isAdmin();
+    }
+
+    // Dispatch packets - scoped to student and assigned instructor
+    match /dispatches/{dispatchId} {
+      allow read: if request.auth != null
+        && (resource.data.studentUid == request.auth.uid
+            || resource.data.instructorUid == request.auth.uid
+            || isAdmin());
+      allow create: if request.auth != null
+        && request.resource.data.studentUid == request.auth.uid;
+      allow update: if request.auth != null
+        && (resource.data.studentUid == request.auth.uid
+            || resource.data.instructorUid == request.auth.uid);
     }
   }
 }

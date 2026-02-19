@@ -1,11 +1,13 @@
 import { useMemo, useEffect, useRef } from "react";
-import { ScrollView, View, Text, StyleSheet } from "react-native";
+import { ScrollView, View, Text, Pressable, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { Scale } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
+import { Scale, Save } from "lucide-react-native";
 
 import { useWBStore } from "@/stores/wb-store";
 import { useSceneStore } from "@/stores/scene-store";
+import { useDispatchStore } from "@/stores/dispatch-store";
 import { DynamicSkyBackground } from "@/components/background/DynamicSkyBackground";
 import { calcTotalWB, calcLandingWB } from "@/lib/wb/calculations";
 import {
@@ -22,6 +24,7 @@ import { PerformanceImpactCard } from "@/components/wb/PerformanceImpactCard";
 import { getPerformanceReport } from "@/lib/wb/performance-impact";
 import { useContentWidth } from "@/hooks/useContentWidth";
 import { trackEvent } from "@/services/analytics";
+import { colors } from "@/theme/tokens";
 
 export default function WBScreen() {
   const contentWidth = useContentWidth();
@@ -137,6 +140,28 @@ export default function WBScreen() {
             />
           </Animated.View>
 
+          {/* Save to Dispatch */}
+          {useDispatchStore.getState().currentDispatch && (
+            <Animated.View entering={FadeInDown.delay(300)} style={styles.gap}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  useDispatchStore.getState().saveWB({
+                    aircraftType: aircraft.name,
+                    totalWeight: takeoff.totalWeight,
+                    cg: takeoff.cg,
+                    withinLimits: takeoff.isCGInEnvelope && !takeoff.isOverweight,
+                    timestamp: new Date(),
+                  });
+                }}
+                style={styles.saveDispatchBtn}
+              >
+                <Save size={18} color="#ffffff" />
+                <Text style={styles.saveDispatchText}>Save to Dispatch</Text>
+              </Pressable>
+            </Animated.View>
+          )}
+
           <View style={{ height: 100 }} />
         </ScrollView>
       </SafeAreaView>
@@ -165,4 +190,18 @@ const styles = StyleSheet.create({
     textShadowRadius: 8,
   },
   gap: { marginTop: 12 },
+  saveDispatchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.accent,
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  saveDispatchText: {
+    fontSize: 15,
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    color: "#ffffff",
+  },
 });

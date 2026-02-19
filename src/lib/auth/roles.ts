@@ -20,6 +20,8 @@ export interface RolePermissions {
   canManageInstructors: boolean;
   canManageTenant: boolean;
   canAccessAdmin: boolean;
+  canDispatch: boolean;
+  canApproveDispatch: boolean;
 }
 
 const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
@@ -33,6 +35,8 @@ const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageInstructors: false,
     canManageTenant: false,
     canAccessAdmin: false,
+    canDispatch: false,
+    canApproveDispatch: false,
   },
   student: {
     canBrief: true,
@@ -44,6 +48,8 @@ const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageInstructors: false,
     canManageTenant: false,
     canAccessAdmin: false,
+    canDispatch: true,
+    canApproveDispatch: false,
   },
   instructor: {
     canBrief: true,
@@ -55,6 +61,8 @@ const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageInstructors: false,
     canManageTenant: false,
     canAccessAdmin: false,
+    canDispatch: true,
+    canApproveDispatch: true,
   },
   chief_instructor: {
     canBrief: true,
@@ -66,6 +74,8 @@ const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageInstructors: true,
     canManageTenant: true,
     canAccessAdmin: false,
+    canDispatch: true,
+    canApproveDispatch: true,
   },
   admin: {
     canBrief: true,
@@ -77,6 +87,8 @@ const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageInstructors: true,
     canManageTenant: true,
     canAccessAdmin: true,
+    canDispatch: true,
+    canApproveDispatch: true,
   },
 };
 

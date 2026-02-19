@@ -17,6 +17,7 @@ export interface TenantConfig {
     studentProgress: boolean;
     schoolAnalytics: boolean;
     lessonPlans: boolean;
+    dispatch: boolean;
   };
   defaultTemplateIds: string[];
 }

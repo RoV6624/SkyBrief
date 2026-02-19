@@ -14,6 +14,8 @@ import {
 import { useAuthStore } from "@/stores/auth-store";
 import { useMonitorStore } from "@/stores/monitor-store";
 import { StepProgressBar } from "@/components/onboarding/StepProgressBar";
+import { registerPushToken } from "@/services/push-token";
+import { saveUserProfile } from "@/services/firebase";
 
 export default function PermissionsScreen() {
   const { completeOnboarding } = useAuthStore();
@@ -50,6 +52,8 @@ export default function PermissionsScreen() {
             minute: 0,
           },
         });
+        // Capture push token for server-side notifications
+        registerPushToken().catch(() => {});
       }
     } catch {
       Alert.alert("Error", "Could not request notification permission.");
@@ -59,6 +63,14 @@ export default function PermissionsScreen() {
   const handleComplete = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setMinimumsEnabled(true);
+    // Capture timezone for daily email briefing
+    try {
+      const uid = useAuthStore.getState().user?.uid;
+      if (uid) {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        await saveUserProfile({ uid, timezone, dailyBriefingEnabled: true } as any);
+      }
+    } catch {}
     setShowSuccess(true);
     setTimeout(async () => {
       await completeOnboarding();
