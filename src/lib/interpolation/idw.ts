@@ -92,9 +92,11 @@ function deriveFlightCategory(
   return "VFR";
 }
 
-function parseVisibility(visib: string): number {
-  if (visib.includes("+")) return 10;
-  const val = parseFloat(visib);
+function parseVisibility(visib: string | number | undefined | null): number {
+  if (visib == null) return 10;
+  const str = String(visib);
+  if (str.includes("+")) return 10;
+  const val = parseFloat(str);
   return isNaN(val) ? 10 : val;
 }
 

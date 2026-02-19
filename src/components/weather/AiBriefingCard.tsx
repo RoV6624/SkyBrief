@@ -1,6 +1,9 @@
-import { View, Text, StyleSheet } from "react-native";
+import { useState, useCallback } from "react";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { Brain, AlertTriangle, CheckCircle, XCircle } from "lucide-react-native";
+import { Brain, AlertTriangle, CheckCircle, XCircle, Volume2, VolumeX } from "lucide-react-native";
+import * as Speech from "expo-speech";
+import * as Haptics from "expo-haptics";
 import { CloudCard } from "@/components/ui/CloudCard";
 import { SeverityBadge } from "@/components/ui/Badge";
 import type { AiBriefing } from "@/lib/api/types";
@@ -25,6 +28,7 @@ const recColors = {
 
 export function AiBriefingCard({ briefing }: AiBriefingCardProps) {
   const { isDark } = useTheme();
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const RecIcon = recIcons[briefing.recommendation];
   const severity = recColors[briefing.recommendation];
   const sevColor =
@@ -33,6 +37,31 @@ export function AiBriefingCard({ briefing }: AiBriefingCardProps) {
       : severity === "amber"
       ? colors.alert.amber
       : colors.alert.red;
+
+  const handleVoiceBriefing = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (isSpeaking) {
+      Speech.stop();
+      setIsSpeaking(false);
+      return;
+    }
+
+    const hazardText =
+      briefing.hazards.length > 0
+        ? ` Hazards: ${briefing.hazards.join(". ")}.`
+        : "";
+    const text = `${briefing.summary}${hazardText} Recommendation: ${briefing.recommendation}.`;
+
+    setIsSpeaking(true);
+    Speech.speak(text, {
+      language: "en-US",
+      rate: 0.95,
+      pitch: 1.0,
+      onDone: () => setIsSpeaking(false),
+      onStopped: () => setIsSpeaking(false),
+      onError: () => setIsSpeaking(false),
+    });
+  }, [briefing, isSpeaking]);
 
   return (
     <Animated.View entering={FadeInDown.delay(350)}>
@@ -49,7 +78,23 @@ export function AiBriefingCard({ briefing }: AiBriefingCardProps) {
               AI Briefing
             </Text>
           </View>
-          <SeverityBadge severity={severity} label={briefing.recommendation} />
+          <View style={styles.headerRight}>
+            <Pressable
+              onPress={handleVoiceBriefing}
+              hitSlop={8}
+              style={[
+                styles.voiceBtn,
+                isSpeaking && { backgroundColor: `${colors.accent}22` },
+              ]}
+            >
+              {isSpeaking ? (
+                <VolumeX size={14} color={colors.accent} />
+              ) : (
+                <Volume2 size={14} color={colors.accent} />
+              )}
+            </Pressable>
+            <SeverityBadge severity={severity} label={briefing.recommendation} />
+          </View>
         </View>
 
         {/* Summary */}
@@ -109,6 +154,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  voiceBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerText: {
     fontSize: 11,

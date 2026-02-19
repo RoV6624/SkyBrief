@@ -29,6 +29,8 @@ import {
   Fuel,
   BarChart3,
   ChevronRight,
+  GraduationCap,
+  ClipboardList,
 } from "lucide-react-native";
 
 import { useRouter } from "expo-router";
@@ -40,6 +42,7 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { useWBStore } from "@/stores/wb-store";
 import { useSceneStore } from "@/stores/scene-store";
 import { useDaylightStore } from "@/stores/daylight-store";
+import { useBriefingStore } from "@/stores/briefing-store";
 import { storage } from "@/services/storage";
 import {
   AIRCRAFT_DATABASE,
@@ -87,6 +90,7 @@ export default function SettingsScreen() {
   const contentWidth = useContentWidth();
   const { fuelUnit, toggleFuelUnit } = useWBStore();
   const { scene } = useSceneStore();
+  const { learningMode, setLearningMode } = useBriefingStore();
   const {
     settings: daylightSettings,
     setNightMinimumsEnabled,
@@ -800,6 +804,56 @@ export default function SettingsScreen() {
                 </Pressable>
               </View>
             </CloudCard>
+          </Animated.View>
+
+          {/* Learning Mode */}
+          <Animated.View entering={FadeInDown.delay(250)} style={styles.gap}>
+            <CloudCard>
+              <View style={styles.sectionHeader}>
+                <GraduationCap size={14} color={colors.stratus[500]} />
+                <Text style={[styles.sectionTitle, { color: dynamicColors.sectionTitle }]}>Learning Mode</Text>
+                <Pressable
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setLearningMode(!learningMode);
+                  }}
+                  style={[
+                    styles.togglePill,
+                    learningMode && styles.togglePillActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.toggleText,
+                      learningMode && styles.toggleTextActive,
+                    ]}
+                  >
+                    {learningMode ? "ON" : "OFF"}
+                  </Text>
+                </Pressable>
+              </View>
+              <Text style={[styles.profileLabel, { color: dynamicColors.profileLabel }]}>
+                Adds educational annotations to weather data explaining METAR codes, flight categories, and weather phenomena. Ideal for student pilots.
+              </Text>
+            </CloudCard>
+          </Animated.View>
+
+          {/* Instructor Dashboard */}
+          <Animated.View entering={FadeInDown.delay(265)} style={styles.gap}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/instructor" as any);
+              }}
+              style={({ pressed }) => [
+                styles.adminBtn,
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <ClipboardList size={18} color={colors.stratus[500]} />
+              <Text style={styles.adminBtnText}>Instructor Dashboard</Text>
+              <ChevronRight size={16} color={colors.stratus[400]} />
+            </Pressable>
           </Animated.View>
 
           {/* Security */}

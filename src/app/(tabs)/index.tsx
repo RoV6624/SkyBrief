@@ -41,6 +41,8 @@ import type { AirportData } from "@/lib/airport/types";
 
 import { WeatherCards, StationHeader } from "@/components/briefing/WeatherCards";
 import { DataCard } from "@/components/briefing/DataCard";
+import { BriefingChecklist } from "@/components/briefing/BriefingChecklist";
+import { GoNoGoCard } from "@/components/briefing/GoNoGoCard";
 
 import { CloudLayerStack } from "@/components/weather/CloudLayerStack";
 import { DaylightTimeline } from "@/components/weather/DaylightTimeline";
@@ -48,6 +50,11 @@ import { FuelPriceCardEnhanced as FuelPriceCard } from "@/components/weather/Fue
 import { MetarRawDisplay } from "@/components/weather/MetarRawDisplay";
 import { AiBriefingCard } from "@/components/weather/AiBriefingCard";
 import { AlertFeed } from "@/components/weather/AlertFeed";
+import { ForecastTimeline } from "@/components/weather/ForecastTimeline";
+import { DepartureWindowCard } from "@/components/weather/DepartureWindowCard";
+import { LearningAnnotation } from "@/components/weather/LearningAnnotation";
+import { MultiStationDashboard } from "@/components/weather/MultiStationDashboard";
+import { SubmitPirepModal } from "@/components/weather/SubmitPirepModal";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { DynamicSkyBackground } from "@/components/background/DynamicSkyBackground";
 import { NotamSection } from "@/components/notam/NotamSection";
@@ -58,7 +65,11 @@ import { CloudCard } from "@/components/ui/CloudCard";
 
 import { mapMetarToScene } from "@/lib/weather/scene-mapper";
 import { evaluateMinimums } from "@/lib/minimums/evaluate";
+import { flightCategoryAnnotations } from "@/lib/weather/annotations";
 import { findStationCoords } from "@/lib/route/station-coords";
+import { useBriefingStore } from "@/stores/briefing-store";
+import { useFamiliarityStore } from "@/stores/familiarity-store";
+import { getFamiliarityInfo, getFamiliarityText } from "@/lib/frat/familiarity";
 import { colors } from "@/theme/tokens";
 import { useTheme } from "@/theme/ThemeProvider";
 import { trackEvent } from "@/services/analytics";
@@ -92,8 +103,8 @@ export default function BriefingScreen() {
   const searchExpandedSV = useSharedValue(false);
   const hasAutoLoadedRef = useRef(false);
   const { user } = useAuthStore();
-  const { homeAirport } = useUserStore();
-  const { selectedStation, setStation, recentStations, addRecentStation } =
+  const { homeAirport, pilotName, defaultAircraft } = useUserStore();
+  const { selectedStation, setStation, recentStations, addRecentStation, pinnedStations, togglePinnedStation } =
     useWeatherStore();
   const {
     thresholds,
@@ -103,6 +114,9 @@ export default function BriefingScreen() {
   } = useMonitorStore();
   const { scene, setScene } = useSceneStore();
   const { settings: daylightSettings } = useDaylightStore();
+  const { learningMode } = useBriefingStore();
+  const { getVisit, getFamiliarityScore, recordVisit } = useFamiliarityStore();
+  const [showPirepModal, setShowPirepModal] = useState(false);
 
   const collapseSearch = useCallback(() => {
     setSearchExpanded(false);
@@ -454,6 +468,29 @@ export default function BriefingScreen() {
             >
               <StationHeader metar={metar} />
 
+              {/* Airport Familiarity Badge */}
+              {(() => {
+                const visit = getVisit(metar.station);
+                const score = getFamiliarityScore(metar.station);
+                const info = getFamiliarityInfo(visit, score);
+                const famColor = info.label === "home" ? colors.alert.green
+                  : info.label === "familiar" ? "#0c8ce9"
+                  : info.label === "visited" ? colors.alert.amber
+                  : colors.alert.red;
+                return (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <View style={{ backgroundColor: famColor, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 10, fontFamily: "SpaceGrotesk_600SemiBold", color: "#FFFFFF", letterSpacing: 0.5 }}>
+                        {info.label === "unfamiliar" ? "FIRST VISIT" : info.label.toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.5)" }}>
+                      {getFamiliarityText(info)}
+                    </Text>
+                  </View>
+                );
+              })()}
+
               {/* Observation age */}
               {metar.observationTime && (
                 <Animated.View entering={FadeInDown.delay(100)}>
@@ -581,9 +618,90 @@ export default function BriefingScreen() {
                 <AiBriefingCard briefing={briefingData} />
               )}
 
+              {/* Go/No-Go Decision Engine */}
+              {metar && minimumsEnabled && minimumsResult && (
+                <GoNoGoCard
+                  metar={metar}
+                  minimums={personalMinimums}
+                  minimumsResult={minimumsResult}
+                  alerts={alerts}
+                  briefing={briefingData ?? undefined}
+                  taf={tafData ?? undefined}
+                />
+              )}
+
+              {/* Forecast Timeline */}
+              {tafData && (
+                <ForecastTimeline
+                  taf={tafData}
+                  currentMetar={metar}
+                />
+              )}
+
+              {/* Departure Window */}
+              {tafData && minimumsEnabled && (
+                <DepartureWindowCard
+                  taf={tafData}
+                  minimums={personalMinimums}
+                />
+              )}
+
+              {/* Learning Mode - Flight Category Annotation */}
+              {learningMode && metar && (
+                <LearningAnnotation
+                  annotation={flightCategoryAnnotations[metar.flightCategory]}
+                />
+              )}
+
+              {/* Briefing Checklist */}
+              {metar && selectedStation && (
+                <BriefingChecklist
+                  station={selectedStation}
+                  stationName={metar.stationName}
+                  pilotName={pilotName || "Pilot"}
+                  aircraftType={defaultAircraft || "Unknown"}
+                  metar={metar}
+                  minimumsResult={minimumsResult ?? undefined}
+                />
+              )}
+
               {/* Raw METAR */}
               <MetarRawDisplay rawText={metar.rawText} />
             </View>
+          )}
+
+          {/* Submit PIREP Button */}
+          {metar && (
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowPirepModal(true);
+              }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                backgroundColor: "rgba(255,255,255,0.08)",
+                paddingVertical: 12,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.12)",
+              }}
+            >
+              <Text style={{ fontSize: 13, fontFamily: "SpaceGrotesk_600SemiBold", color: "rgba(255,255,255,0.7)" }}>
+                Submit PIREP
+              </Text>
+            </Pressable>
+          )}
+
+          {/* Multi-Station Dashboard */}
+          {pinnedStations.length > 0 && (
+            <MultiStationDashboard
+              stations={pinnedStations}
+              onRemoveStation={(icao) => togglePinnedStation(icao)}
+              onAddStation={() => {}}
+            />
           )}
 
           {/* Empty State */}
@@ -604,6 +722,13 @@ export default function BriefingScreen() {
           <View style={{ height: 100 }} />
         </Animated.ScrollView>
       </SafeAreaView>
+
+      {/* PIREP Modal */}
+      <SubmitPirepModal
+        visible={showPirepModal}
+        onClose={() => setShowPirepModal(false)}
+        station={selectedStation ?? ""}
+      />
     </View>
   );
 }

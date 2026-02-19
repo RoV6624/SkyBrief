@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
+  Pressable,
   ScrollView,
   StyleSheet,
   Keyboard,
@@ -10,10 +11,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeOut, SlideOutUp } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
 import {
   Navigation,
   ShieldAlert,
   AlertTriangle,
+  Compass,
 } from "lucide-react-native";
 
 import { useRouteBriefing } from "@/hooks/useRouteBriefing";
@@ -48,6 +51,7 @@ import type { FlightCategory } from "@/lib/api/types";
 
 export default function RouteScreen() {
   const { theme, isDark } = useTheme();
+  const router = useRouter();
   const contentWidth = useContentWidth();
   const scene = useSceneStore((s) => s.scene);
   const aircraft = useWBStore((s) => s.aircraft);
@@ -315,6 +319,33 @@ export default function RouteScreen() {
                   <Navigation size={22} color="#ffffff" strokeWidth={1.8} />
                   <Text style={styles.title}>Route Briefing</Text>
                 </View>
+              </Animated.View>
+
+              {/* XC Wizard Link */}
+              <Animated.View entering={FadeInDown.delay(25)}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push("/xc-wizard");
+                  }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    backgroundColor: "rgba(212,168,83,0.15)",
+                    paddingVertical: 12,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: "rgba(212,168,83,0.25)",
+                    marginBottom: 12,
+                  }}
+                >
+                  <Compass size={16} color={colors.accent} />
+                  <Text style={{ fontSize: 13, fontFamily: "SpaceGrotesk_600SemiBold", color: colors.accent }}>
+                    XC Planning Wizard
+                  </Text>
+                </Pressable>
               </Animated.View>
 
               {/* Input Card */}

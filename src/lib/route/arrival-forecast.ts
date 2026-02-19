@@ -9,9 +9,11 @@ function findCeiling(clouds: { cover: string; base: number }[]): number | null {
   return Math.min(...ceilingLayers.map((c) => c.base));
 }
 
-function parseVisibility(visib: string): number {
-  if (visib === "10+") return 10;
-  const val = parseFloat(visib);
+function parseVisibility(visib: string | number | undefined | null): number {
+  if (visib == null) return 10;
+  const str = String(visib);
+  if (str === "10+" || str.includes("+")) return 10;
+  const val = parseFloat(str);
   return isNaN(val) ? 10 : val;
 }
 

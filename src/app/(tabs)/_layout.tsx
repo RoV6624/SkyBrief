@@ -6,6 +6,7 @@ import {
   CloudSun,
   Navigation,
   Scale,
+  BookOpen,
   Map,
   Settings,
 } from "lucide-react-native";
@@ -75,6 +76,15 @@ export default function TabLayout() {
           title: "W&B",
           tabBarIcon: ({ color, size }) => (
             <Scale size={size} color={color} strokeWidth={1.8} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="logbook"
+        options={{
+          title: "Logbook",
+          tabBarIcon: ({ color, size }) => (
+            <BookOpen size={size} color={color} strokeWidth={1.8} />
           ),
         }}
       />

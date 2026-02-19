@@ -18,6 +18,8 @@ import { WeightBalanceForm } from "@/components/wb/WeightBalanceForm";
 import { CGEnvelopeGraph } from "@/components/wb/CGEnvelopeGraph";
 import { WBAlerts } from "@/components/wb/WBAlerts";
 import { PerformancePanel } from "@/components/wb/PerformancePanel";
+import { PerformanceImpactCard } from "@/components/wb/PerformanceImpactCard";
+import { getPerformanceReport } from "@/lib/wb/performance-impact";
 import { useContentWidth } from "@/hooks/useContentWidth";
 import { trackEvent } from "@/services/analytics";
 
@@ -64,6 +66,17 @@ export default function WBScreen() {
   const da = calcDensityAlt(pa, oat);
   const daSeverity = getDensityAltWarning(da);
 
+  const perfReport = useMemo(
+    () =>
+      getPerformanceReport({
+        densityAlt: da,
+        fieldElevation,
+        temperature: oat,
+        aircraftName: aircraft.name,
+      }),
+    [da, fieldElevation, oat, aircraft.name]
+  );
+
   return (
     <View style={styles.container}>
       <DynamicSkyBackground scene={scene} />
@@ -109,6 +122,19 @@ export default function WBScreen() {
           {/* Performance */}
           <Animated.View entering={FadeInDown.delay(200)} style={styles.gap}>
             <PerformancePanel />
+          </Animated.View>
+
+          {/* Density Altitude Performance Impact */}
+          <Animated.View entering={FadeInDown.delay(250)} style={styles.gap}>
+            <PerformanceImpactCard
+              densityAlt={perfReport.densityAlt}
+              severity={perfReport.severity}
+              takeoffRoll={perfReport.takeoffRoll}
+              climbRate={perfReport.climbRate}
+              runway={perfReport.runway}
+              warnings={perfReport.warnings}
+              advisory={perfReport.advisory}
+            />
           </Animated.View>
 
           <View style={{ height: 100 }} />

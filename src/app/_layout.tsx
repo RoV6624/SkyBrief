@@ -13,6 +13,7 @@ import {
 } from "@expo-google-fonts/inter";
 import {
   JetBrainsMono_400Regular,
+  JetBrainsMono_500Medium,
   JetBrainsMono_600SemiBold,
   JetBrainsMono_700Bold,
 } from "@expo-google-fonts/jetbrains-mono";
@@ -103,7 +104,7 @@ function RootNavigator() {
     } else if (isAuthenticated && !onboardingComplete && segments[0] !== "onboarding") {
       console.log("[Auth] Navigating to onboarding screen");
       router.push("/onboarding" as any); // Type assertion for Expo Router compatibility
-    } else if (isAuthenticated && onboardingComplete && segments[0] !== "(tabs)" && segments[0] !== "admin") {
+    } else if (isAuthenticated && onboardingComplete && segments[0] !== "(tabs)" && segments[0] !== "admin" && segments[0] !== "xc-wizard" && segments[0] !== "instructor") {
       console.log("[Auth] Navigating to main app");
       router.push("/(tabs)" as any); // Type assertion for Expo Router compatibility
     }
@@ -126,6 +127,8 @@ function RootNavigator() {
           <>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="admin" />
+            <Stack.Screen name="xc-wizard" options={{ presentation: "modal" }} />
+            <Stack.Screen name="instructor" />
           </>
         )}
       </Stack>
@@ -140,6 +143,7 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
     JetBrainsMono_400Regular,
+    JetBrainsMono_500Medium,
     JetBrainsMono_600SemiBold,
     JetBrainsMono_700Bold,
     SpaceGrotesk_400Regular,
