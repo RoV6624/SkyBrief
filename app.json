@@ -16,11 +16,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.skybrief.app",
-      "buildNumber": "15",
+      "buildNumber": "16",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "SkyBrief uses your location to find nearby weather stations.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleIconName": "AppIcon"
       }
     },
     "plugins": [
@@ -42,7 +43,8 @@
           "locationWhenInUsePermission": "SkyBrief uses your location to find nearby weather stations."
         }
       ],
-      "./plugins/withFirebaseModularHeaders"
+      "./plugins/withFirebaseModularHeaders",
+      "./plugins/withAppIcons"
     ],
     "runtimeVersion": "1.0.0",
     "experiments": {
