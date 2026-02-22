@@ -35,6 +35,7 @@ import {
 
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/stores/auth-store";
+import { isInstructorRole } from "@/lib/auth/roles";
 import { useUserStore } from "@/stores/user-store";
 import { useMonitorStore } from "@/stores/monitor-store";
 import { useThemeStore } from "@/stores/theme-store";
@@ -65,11 +66,12 @@ import { colors } from "@/theme/tokens";
 import { getAirportData } from "@/services/airport-data";
 import { useContentWidth } from "@/hooks/useContentWidth";
 import { saveUserProfile } from "@/services/firebase";
-import { Mail } from "lucide-react-native";
+import { Mail, Newspaper } from "lucide-react-native";
+import { useDailyBriefingStore } from "@/stores/daily-briefing-store";
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, isAdmin, signOut: authSignOut } = useAuthStore();
+  const { user, isAdmin, role, signOut: authSignOut } = useAuthStore();
   const {
     pilotName,
     email,
@@ -116,6 +118,9 @@ export default function SettingsScreen() {
 
   // ── Daily Email Briefing state ─────────────────────────────────────────────
   const [dailyEmailEnabled, setDailyEmailEnabled] = useState(false);
+
+  // ── Daily Briefing Popup ──────────────────────────────────────────────────
+  const { enabled: dailyPopupEnabled, setEnabled: setDailyPopupEnabled, openManually: openDailyBriefing } = useDailyBriefingStore();
 
   // ── Home Airport Display state ─────────────────────────────────────────────
   const [homeAirportName, setHomeAirportName] = useState<string>("");
@@ -301,6 +306,36 @@ export default function SettingsScreen() {
     borderColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(12,140,233,0.1)",
   }), [isDark, theme]);
 
+  // Group aircraft by manufacturer for the picker
+  const aircraftGroups = useMemo(() => {
+    const groups: { label: string; items: { ac: (typeof AIRCRAFT_DATABASE)[0]; shortName: string }[] }[] = [];
+    const groupMap: Record<string, (typeof groups)[0]> = {};
+
+    for (const ac of AIRCRAFT_DATABASE) {
+      let label: string;
+      let shortName: string;
+
+      if (ac.name.startsWith("Cessna ")) {
+        label = "CESSNA";
+        shortName = ac.name.replace("Cessna ", "");
+      } else if (ac.name.startsWith("Piper ")) {
+        label = "PIPER";
+        shortName = ac.name.replace("Piper ", "");
+      } else {
+        label = "OTHER";
+        shortName = ac.name.replace(/^(Diamond|Cirrus|Beechcraft) /, "");
+      }
+
+      if (!groupMap[label]) {
+        groupMap[label] = { label, items: [] };
+        groups.push(groupMap[label]);
+      }
+      groupMap[label].items.push({ ac, shortName });
+    }
+
+    return groups;
+  }, []);
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
@@ -452,30 +487,41 @@ export default function SettingsScreen() {
                 <Plane size={14} color={colors.stratus[500]} />
                 <Text style={[styles.sectionTitle, { color: dynamicColors.sectionTitle }]}>Default Aircraft</Text>
               </View>
-              <View style={styles.acRow}>
-                {AIRCRAFT_DATABASE.map((ac) => (
-                  <Pressable
-                    key={ac.id}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setDefaultAircraft(ac.id);
-                    }}
-                    style={[
-                      styles.acChip,
-                      defaultAircraft === ac.id && styles.acChipActive,
-                    ]}
+              {aircraftGroups.map((group) => (
+                <View key={group.label} style={styles.acGroup}>
+                  <Text style={[styles.acGroupLabel, { color: dynamicColors.sectionTitle }]}>
+                    {group.label}
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.acScrollContent}
                   >
-                    <Text
-                      style={[
-                        styles.acChipText,
-                        defaultAircraft === ac.id && styles.acChipTextActive,
-                      ]}
-                    >
-                      {ac.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+                    {group.items.map(({ ac, shortName }) => (
+                      <Pressable
+                        key={ac.id}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setDefaultAircraft(ac.id);
+                        }}
+                        style={[
+                          styles.acChip,
+                          defaultAircraft === ac.id && styles.acChipActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.acChipText,
+                            defaultAircraft === ac.id && styles.acChipTextActive,
+                          ]}
+                        >
+                          {shortName}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              ))}
 
               {/* Custom Aircraft with Edit / Delete */}
               {customAircraft.length > 0 && (
@@ -843,6 +889,50 @@ export default function SettingsScreen() {
             </CloudCard>
           </Animated.View>
 
+          {/* Daily Briefing Popup */}
+          <Animated.View entering={FadeInDown.delay(255)} style={styles.gap}>
+            <CloudCard>
+              <View style={styles.sectionHeader}>
+                <Newspaper size={14} color={colors.stratus[500]} />
+                <Text style={[styles.sectionTitle, { color: dynamicColors.sectionTitle }]}>Daily Briefing Popup</Text>
+                <Pressable
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setDailyPopupEnabled(!dailyPopupEnabled);
+                  }}
+                  style={[
+                    styles.togglePill,
+                    dailyPopupEnabled && styles.togglePillActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.toggleText,
+                      dailyPopupEnabled && styles.toggleTextActive,
+                    ]}
+                  >
+                    {dailyPopupEnabled ? "ON" : "OFF"}
+                  </Text>
+                </Pressable>
+              </View>
+              <Text style={[styles.profileLabel, { color: dynamicColors.profileLabel }]}>
+                Show a daily weather briefing popup for your home airport when you open the app.
+              </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  openDailyBriefing();
+                  router.push("/(tabs)" as any);
+                }}
+                style={[styles.actionRow, { marginTop: 10 }]}
+              >
+                <Newspaper size={16} color={colors.stratus[500]} />
+                <Text style={styles.actionText}>View Today's Briefing</Text>
+                <ChevronRight size={14} color={colors.stratus[400]} />
+              </Pressable>
+            </CloudCard>
+          </Animated.View>
+
           {/* Daily Email Briefing */}
           <Animated.View entering={FadeInDown.delay(260)} style={styles.gap}>
             <CloudCard>
@@ -884,6 +974,7 @@ export default function SettingsScreen() {
           </Animated.View>
 
           {/* Instructor Dashboard */}
+          {role && isInstructorRole(role) && (
           <Animated.View entering={FadeInDown.delay(270)} style={styles.gap}>
             <Pressable
               onPress={() => {
@@ -900,6 +991,7 @@ export default function SettingsScreen() {
               <ChevronRight size={16} color={colors.stratus[400]} />
             </Pressable>
           </Animated.View>
+          )}
 
           {/* Security */}
           <Animated.View entering={FadeInDown.delay(275)} style={styles.gap}>
@@ -1185,14 +1277,22 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     color: colors.stratus[800],
   },
-  acRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  acGroup: { marginBottom: 10 },
+  acGroupLabel: {
+    fontSize: 11,
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    letterSpacing: 1,
+    marginBottom: 6,
+    textTransform: "uppercase",
+  },
+  acScrollContent: { flexDirection: "row", gap: 8, paddingRight: 16 },
   acChip: {
-    flex: 1,
     backgroundColor: "rgba(12,140,233,0.04)",
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "rgba(12,140,233,0.08)",
     paddingVertical: 10,
+    paddingHorizontal: 14,
     alignItems: "center",
   },
   acChipActive: {
