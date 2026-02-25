@@ -20,14 +20,71 @@ import type { UserRole } from "@/lib/auth/roles";
 import type { AssignedLesson, StudentFeedback, InstructorFeedback } from "@/lib/lessons/types";
 import type { TrainingPlan, TrainingPlanData, TrainingPlanLesson } from "@/lib/training-plans/types";
 
+// ===== Helper: Auth Headers =====
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const currentUser = safeCurrentUser();
+  if (!currentUser) throw new Error("Not authenticated");
+  const idToken = await currentUser.getIdToken();
+  return { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` };
+}
+
+// ===== Firestore Response Types =====
+
+interface FirestoreValue {
+  stringValue?: string;
+  integerValue?: string;
+  doubleValue?: number;
+  booleanValue?: boolean;
+  timestampValue?: string;
+  nullValue?: null;
+  arrayValue?: { values?: FirestoreValue[] };
+  mapValue?: { fields?: Record<string, FirestoreValue> };
+}
+
+interface FirestoreDocument {
+  name: string;
+  fields?: Record<string, FirestoreValue>;
+  createTime?: string;
+  updateTime?: string;
+}
+
+interface FirestoreQueryResult {
+  document?: FirestoreDocument;
+  readTime?: string;
+}
+
 // ===== Helper: Parse Firestore document fields =====
 
-function parseDocFields(fields: Record<string, any>): Record<string, any> {
-  const result: Record<string, any> = {};
+function parseDocFields(fields: Record<string, FirestoreValue>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(fields)) {
     result[key] = firestoreValueToJS(value);
   }
   return result;
+}
+
+// ===== Helper: Run Firestore Query =====
+
+async function runFirestoreQuery(
+  query: Record<string, unknown>
+): Promise<Array<{ id: string; fields: Record<string, unknown> }>> {
+  const url = `${FIRESTORE_API_URL}:runQuery`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: await getAuthHeaders(),
+    body: JSON.stringify({ structuredQuery: query }),
+  });
+
+  if (!response.ok) return [];
+  const results: FirestoreQueryResult[] = await response.json();
+
+  return results
+    .filter((r): r is FirestoreQueryResult & { document: FirestoreDocument } => !!r.document)
+    .map((r) => ({
+      id: r.document.name.split("/").pop() ?? "",
+      fields: parseDocFields(r.document.fields ?? {}),
+    }));
 }
 
 // ===== Tenant CRUD =====
@@ -57,7 +114,7 @@ export async function createTenantDirect(opts: {
     const checkUrl = `${FIRESTORE_API_URL}:runQuery`;
     const checkResp = await fetch(checkUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({
         structuredQuery: {
           from: [{ collectionId: "tenants" }],
@@ -170,8 +227,9 @@ export async function getUserTenant(uid: string): Promise<string | null> {
   if (!FIRESTORE_API_URL) return null;
 
   try {
+    const headers = await getAuthHeaders();
     const url = `${FIRESTORE_API_URL}/users/${uid}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { headers });
     if (!response.ok) return null;
 
     const data = await response.json();
@@ -187,8 +245,9 @@ export async function getUserRole(uid: string): Promise<UserRole> {
   if (!FIRESTORE_API_URL) return "pilot";
 
   try {
+    const headers = await getAuthHeaders();
     const url = `${FIRESTORE_API_URL}/users/${uid}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { headers });
     if (!response.ok) return "pilot";
 
     const data = await response.json();
@@ -238,7 +297,7 @@ export async function submitBriefingForReview(params: {
 
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ fields }),
     });
 
@@ -356,7 +415,7 @@ export async function updateBriefingStatus(
     const url = `${FIRESTORE_API_URL}/briefings/${briefingId}?updateMask.fieldPaths=status&updateMask.fieldPaths=reviewedAt&updateMask.fieldPaths=reviewerComment`;
     const response = await fetch(url, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({
         fields: {
           status: jsToFirestoreValue(status),
@@ -395,7 +454,7 @@ export async function getStudentMetrics(
     const url = `${FIRESTORE_API_URL}:runQuery`;
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({
         structuredQuery: {
           from: [{ collectionId: "briefings" }],
@@ -481,7 +540,7 @@ export async function getSchoolStudents(
     const url = `${FIRESTORE_API_URL}:runQuery`;
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({
         structuredQuery: {
           from: [{ collectionId: "users" }],
@@ -540,7 +599,7 @@ export async function getSchoolTemplates(
 
   try {
     const url = `${FIRESTORE_API_URL}/tenants/${tenantId}/templates`;
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: await getAuthHeaders() });
     if (!response.ok) return [];
 
     const data = await response.json();
@@ -588,7 +647,7 @@ export async function getBriefingNotes(
 
   try {
     const url = `${FIRESTORE_API_URL}/briefings/${briefingId}/notes`;
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: await getAuthHeaders() });
     if (!response.ok) return [];
 
     const data = await response.json();
@@ -636,7 +695,7 @@ export async function addBriefingNote(
 
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ fields }),
     });
 
@@ -657,7 +716,10 @@ export async function deleteBriefingNote(
 
   try {
     const url = `${FIRESTORE_API_URL}/briefings/${briefingId}/notes/${noteId}`;
-    const response = await fetch(url, { method: "DELETE" });
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: await getAuthHeaders(),
+    });
     return response.ok;
   } catch (error) {
     console.error("[TenantAPI] Failed to delete note:", error);
@@ -687,7 +749,7 @@ export async function getSchoolLessonPlans(
 
   try {
     const url = `${FIRESTORE_API_URL}/tenants/${tenantId}/lessons`;
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: await getAuthHeaders() });
     if (!response.ok) return [];
 
     const data = await response.json();
@@ -736,7 +798,7 @@ export async function saveLessonPlan(
 
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ fields }),
     });
 
@@ -866,7 +928,7 @@ export async function getSchoolInstructors(
     const url = `${FIRESTORE_API_URL}:runQuery`;
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({
         structuredQuery: {
           from: [{ collectionId: "users" }],
@@ -968,7 +1030,7 @@ export async function getStudentAssignedLessons(
     const url = `${FIRESTORE_API_URL}:runQuery`;
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({
         structuredQuery: {
           from: [{ collectionId: "assigned_lessons", allDescendants: true }],
@@ -1021,7 +1083,7 @@ export async function getInstructorAssignedLessons(
     const url = `${FIRESTORE_API_URL}:runQuery`;
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({
         structuredQuery: {
           from: [{ collectionId: "assigned_lessons", allDescendants: true }],
@@ -1093,7 +1155,7 @@ export async function assignLesson(
 
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ fields }),
     });
 
@@ -1129,7 +1191,7 @@ export async function updateAssignedLessonStatus(
 
     const response = await fetch(url, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ fields }),
     });
     return response.ok;
@@ -1166,7 +1228,7 @@ export async function submitLessonFeedback(
 
     const response = await fetch(url, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({
         fields: {
           [feedbackType]: { mapValue: { fields: feedbackMap } },
@@ -1192,7 +1254,7 @@ export async function getInstructorStudents(
     const url = `${FIRESTORE_API_URL}:runQuery`;
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({
         structuredQuery: {
           from: [{ collectionId: "users" }],
@@ -1325,7 +1387,7 @@ export async function getSchoolTrainingPlans(
 
   try {
     const url = `${FIRESTORE_API_URL}/tenants/${tenantId}/training_plans`;
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: await getAuthHeaders() });
     if (!response.ok) return [];
 
     const data = await response.json();
@@ -1373,7 +1435,7 @@ export async function saveTrainingPlan(
 
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ fields }),
     });
 
@@ -1407,7 +1469,7 @@ export async function updateTrainingPlan(
 
     const response = await fetch(url, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ fields }),
     });
     return response.ok;

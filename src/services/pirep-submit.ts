@@ -8,6 +8,7 @@
 import {
   FIRESTORE_API_URL,
   jsToFirestoreValue,
+  safeCurrentUser,
 } from "./firebase";
 
 export type TurbulenceIntensity = "NEG" | "LGT" | "LGT-MOD" | "MOD" | "MOD-SEV" | "SEV" | "EXTRM";
@@ -103,6 +104,10 @@ export async function submitPirep(
   if (!FIRESTORE_API_URL) return null;
 
   try {
+    const currentUser = safeCurrentUser();
+    if (!currentUser) return null;
+    const idToken = await currentUser.getIdToken();
+
     const url = `${FIRESTORE_API_URL}/pireps`;
     const fields: Record<string, any> = {
       nearestStation: jsToFirestoreValue(pirep.nearestStation),
@@ -131,7 +136,10 @@ export async function submitPirep(
 
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
       body: JSON.stringify({ fields }),
     });
 

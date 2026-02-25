@@ -101,6 +101,36 @@ service cloud.firestore {
       }
     }
 
+    // Briefings - students can create, student/instructor/admin can read/update
+    match /briefings/{briefingId} {
+      allow read: if request.auth != null
+        && (resource.data.studentUid == request.auth.uid
+            || resource.data.instructorUid == request.auth.uid
+            || isAdmin());
+      allow create: if request.auth != null
+        && request.resource.data.studentUid == request.auth.uid;
+      allow update: if request.auth != null
+        && (resource.data.studentUid == request.auth.uid
+            || resource.data.instructorUid == request.auth.uid
+            || isAdmin());
+
+      // Briefing notes subcollection
+      match /notes/{noteId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null
+          && request.resource.data.authorUid == request.auth.uid;
+        allow delete: if request.auth != null
+          && resource.data.authorUid == request.auth.uid;
+      }
+    }
+
+    // PIREPs - authenticated users can read, author can create
+    match /pireps/{pirepId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.submittedBy == request.auth.uid;
+    }
+
     // Dispatch packets - scoped to student and assigned instructor
     match /dispatches/{dispatchId} {
       allow read: if request.auth != null

@@ -118,13 +118,14 @@ export function PerformancePanel() {
 
       {/* Computed Values */}
       <View style={styles.results}>
-        <View style={styles.resultCard}>
+        <View style={[styles.resultCard, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(240,247,255,0.5)" }]}>
           <Text style={[styles.resultLabel, { color: dynamicColors.resultLabel }]}>Pressure Alt</Text>
           <Text style={[styles.resultValue, { color: dynamicColors.resultValue }]}>{pa.toLocaleString()} ft</Text>
         </View>
         <View
           style={[
             styles.resultCard,
+            { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(240,247,255,0.5)" },
             severity === "warning" && styles.resultDanger,
             severity === "caution" && styles.resultCaution,
           ]}
@@ -141,7 +142,7 @@ export function PerformancePanel() {
             {da.toLocaleString()} ft
           </Text>
         </View>
-        <View style={styles.resultCard}>
+        <View style={[styles.resultCard, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(240,247,255,0.5)" }]}>
           <Text style={[styles.resultLabel, { color: dynamicColors.resultLabel }]}>ISA Dev</Text>
           <Text style={[styles.resultValue, { color: dynamicColors.resultValue }]}>
             {isaDev > 0 ? "+" : ""}
@@ -201,7 +202,6 @@ const styles = StyleSheet.create({
   },
   resultCard: {
     flex: 1,
-    backgroundColor: "rgba(240,247,255,0.5)",
     borderRadius: 12,
     padding: 10,
     alignItems: "center",

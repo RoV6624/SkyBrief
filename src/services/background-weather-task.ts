@@ -66,7 +66,7 @@ try {
           const started =
             state.startedAt instanceof Date
               ? state.startedAt
-              : new Date(state.startedAt as unknown as string);
+              : new Date(String(state.startedAt));
           if (Date.now() - started.getTime() > PREFLIGHT_TIMEOUT_MS) {
             state.stopPreflight();
             return BackgroundFetch.BackgroundFetchResult.NoData;

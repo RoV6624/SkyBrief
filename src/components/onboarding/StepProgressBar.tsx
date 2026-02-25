@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from "react-native";
+import { useTheme } from "@/theme/ThemeProvider";
 
 const DEFAULT_LABELS = ["Profile", "Minimums", "Aircraft", "Permissions"];
 const STUDENT_LABELS = ["Profile", "School", "Instructor", "Minimums", "Aircraft", "Permissions"];
@@ -30,6 +31,13 @@ export function StepProgressBar({
 }: StepProgressBarProps) {
   const steps = totalSteps ?? DEFAULT_LABELS.length;
   const labels = stepLabels ?? DEFAULT_LABELS;
+  const { isDark } = useTheme();
+
+  // Onboarding always renders on a gradient background, so white tints
+  // work for both modes. Dark mode uses slightly brighter values.
+  const activeColor = isDark ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.9)";
+  const inactiveColor = isDark ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.2)";
+  const labelColor = isDark ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.5)";
 
   return (
     <View style={styles.container}>
@@ -39,13 +47,13 @@ export function StepProgressBar({
             key={i}
             style={[
               styles.segment,
-              i < currentStep ? styles.segmentActive : styles.segmentInactive,
+              { backgroundColor: i < currentStep ? activeColor : inactiveColor },
               i < steps - 1 && styles.segmentGap,
             ]}
           />
         ))}
       </View>
-      <Text style={styles.label}>
+      <Text style={[styles.label, { color: labelColor }]}>
         Step {currentStep} of {steps} — {labels[currentStep - 1]}
       </Text>
     </View>
@@ -68,16 +76,9 @@ const styles = StyleSheet.create({
   segmentGap: {
     marginRight: 4,
   },
-  segmentActive: {
-    backgroundColor: "rgba(255,255,255,0.9)",
-  },
-  segmentInactive: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-  },
   label: {
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
-    color: "rgba(255,255,255,0.5)",
     textTransform: "uppercase",
     letterSpacing: 1,
   },

@@ -1,13 +1,12 @@
 import React from "react";
-import { View, StyleSheet, Platform } from "react-native";
+import { View, StyleSheet, Platform, type StyleProp, type ViewStyle } from "react-native";
 import { BlurView } from "expo-blur";
 import { useTheme } from "@/theme/ThemeProvider";
 import { shadows, radii } from "@/theme/tokens";
 
 interface CloudCardProps {
   children: React.ReactNode;
-  className?: string;
-  style?: object;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function CloudCard({ children, style }: CloudCardProps) {
@@ -18,10 +17,7 @@ export function CloudCard({ children, style }: CloudCardProps) {
       <View
         style={[
           styles.container,
-          {
-            ...shadows.cloud,
-            zIndex: 1,
-          },
+          shadows.cloud,
           style,
         ]}
       >
@@ -43,7 +39,6 @@ export function CloudCard({ children, style }: CloudCardProps) {
         {
           backgroundColor: isDark ? "rgba(30,30,35,0.92)" : "rgba(255,255,255,0.88)",
           ...shadows.cloud,
-          zIndex: 1,
         },
         style,
       ]}

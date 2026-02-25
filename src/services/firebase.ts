@@ -279,6 +279,11 @@ export function firestoreValueToJS(value: any): any {
   if (value.arrayValue !== undefined) {
     return (value.arrayValue.values ?? []).map(firestoreValueToJS);
   }
+  if (value.mapValue !== undefined) {
+    const result: Record<string, any> = {};
+    for (const [key, val] of Object.entries(value.mapValue.fields || {})) result[key] = firestoreValueToJS(val);
+    return result;
+  }
   if (value.nullValue !== undefined) return null;
   return null;
 }
@@ -295,6 +300,11 @@ export function jsToFirestoreValue(value: any): any {
   }
   if (typeof value === "boolean") return { booleanValue: value };
   if (value instanceof Date) return { timestampValue: value.toISOString() };
+  if (typeof value === "object" && value !== null) {
+    const fields: Record<string, any> = {};
+    for (const [key, val] of Object.entries(value)) fields[key] = jsToFirestoreValue(val);
+    return { mapValue: { fields } };
+  }
   return { nullValue: null };
 }
 
@@ -303,8 +313,14 @@ export function jsToFirestoreValue(value: any): any {
 export async function getFuelPrice(icao: string): Promise<FuelPriceData | null> {
   try {
     assertFirestoreEnabled();
+    const currentUser = safeCurrentUser();
+    const headers: Record<string, string> = {};
+    if (currentUser) {
+      const idToken = await currentUser.getIdToken();
+      headers.Authorization = `Bearer ${idToken}`;
+    }
     const docUrl = `${FIRESTORE_API_URL}/fuel_prices/${icao.toUpperCase()}`;
-    const response = await fetch(docUrl);
+    const response = await fetch(docUrl, { headers });
 
     if (response.status === 404) {
       return null; // Document doesn't exist
@@ -530,9 +546,15 @@ export async function getFuelPriceReports(icao: string): Promise<FuelPriceReport
   try {
     assertFirestoreEnabled();
     // Query subcollection: fuel_prices/{icao}/reports
+    const currentUser = safeCurrentUser();
+    const headers: Record<string, string> = {};
+    if (currentUser) {
+      const idToken = await currentUser.getIdToken();
+      headers.Authorization = `Bearer ${idToken}`;
+    }
     const collectionUrl = `${FIRESTORE_API_URL}/fuel_prices/${icao.toUpperCase()}/reports`;
 
-    const response = await fetch(collectionUrl);
+    const response = await fetch(collectionUrl, { headers });
 
     if (response.status === 404) {
       return []; // No reports for this airport
@@ -589,47 +611,39 @@ export async function upvoteFuelReport(
     }
 
     const idToken = await currentUser.getIdToken();
-    const docUrl = `${FIRESTORE_API_URL}/fuel_prices/${icao.toUpperCase()}/reports/${reportId}`;
+    const docPath = `projects/${PROJECT_ID}/databases/(default)/documents/fuel_prices/${icao.toUpperCase()}/reports/${reportId}`;
+    const commitUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:commit`;
 
-    // Fetch current report
-    const getResponse = await fetch(docUrl, {
-      headers: { "Authorization": `Bearer ${idToken}` },
-    });
-
-    if (!getResponse.ok) {
-      throw new Error("Report not found");
-    }
-
-    const docData = await getResponse.json();
-    const fields = docData.fields || {};
-
-    const currentUpvotes = firestoreValueToJS(fields.upvotes) || 0;
-    const verifiedByUids = firestoreValueToJS(fields.verified_by_uids) || [];
-
-    // Check if user already upvoted
-    if (verifiedByUids.includes(uid)) {
-      console.log("[Firestore] User already upvoted this report");
-      return; // Already upvoted, do nothing
-    }
-
-    // Add user to verified list and increment upvotes
-    const updatedDoc = {
-      fields: {
-        upvotes: jsToFirestoreValue(currentUpvotes + 1),
-        verified_by_uids: jsToFirestoreValue([...verifiedByUids, uid]),
-      },
-    };
-
-    const updateResponse = await fetch(`${docUrl}?updateMask.fieldPaths=upvotes&updateMask.fieldPaths=verified_by_uids`, {
-      method: "PATCH",
+    const response = await fetch(commitUrl, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${idToken}`,
+        Authorization: `Bearer ${idToken}`,
       },
-      body: JSON.stringify(updatedDoc),
+      body: JSON.stringify({
+        writes: [
+          {
+            transform: {
+              document: docPath,
+              fieldTransforms: [
+                {
+                  fieldPath: "upvotes",
+                  increment: { integerValue: "1" },
+                },
+                {
+                  fieldPath: "verified_by_uids",
+                  appendMissingElements: {
+                    values: [{ stringValue: uid }],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }),
     });
 
-    if (!updateResponse.ok) {
+    if (!response.ok) {
       throw new Error("Failed to upvote report");
     }
 
@@ -656,47 +670,39 @@ export async function flagFuelReport(
     }
 
     const idToken = await currentUser.getIdToken();
-    const docUrl = `${FIRESTORE_API_URL}/fuel_prices/${icao.toUpperCase()}/reports/${reportId}`;
+    const docPath = `projects/${PROJECT_ID}/databases/(default)/documents/fuel_prices/${icao.toUpperCase()}/reports/${reportId}`;
+    const commitUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:commit`;
 
-    // Fetch current report
-    const getResponse = await fetch(docUrl, {
-      headers: { "Authorization": `Bearer ${idToken}` },
-    });
-
-    if (!getResponse.ok) {
-      throw new Error("Report not found");
-    }
-
-    const docData = await getResponse.json();
-    const fields = docData.fields || {};
-
-    const currentFlags = firestoreValueToJS(fields.flags) || 0;
-    const flaggedByUids = firestoreValueToJS(fields.flagged_by_uids) || [];
-
-    // Check if user already flagged
-    if (flaggedByUids.includes(uid)) {
-      console.log("[Firestore] User already flagged this report");
-      return; // Already flagged, do nothing
-    }
-
-    // Add user to flagged list and increment flags
-    const updatedDoc = {
-      fields: {
-        flags: jsToFirestoreValue(currentFlags + 1),
-        flagged_by_uids: jsToFirestoreValue([...flaggedByUids, uid]),
-      },
-    };
-
-    const updateResponse = await fetch(`${docUrl}?updateMask.fieldPaths=flags&updateMask.fieldPaths=flagged_by_uids`, {
-      method: "PATCH",
+    const response = await fetch(commitUrl, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${idToken}`,
+        Authorization: `Bearer ${idToken}`,
       },
-      body: JSON.stringify(updatedDoc),
+      body: JSON.stringify({
+        writes: [
+          {
+            transform: {
+              document: docPath,
+              fieldTransforms: [
+                {
+                  fieldPath: "flags",
+                  increment: { integerValue: "1" },
+                },
+                {
+                  fieldPath: "flagged_by_uids",
+                  appendMissingElements: {
+                    values: [{ stringValue: uid }],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }),
     });
 
-    if (!updateResponse.ok) {
+    if (!response.ok) {
       throw new Error("Failed to flag report");
     }
 
@@ -713,9 +719,11 @@ export async function flagFuelReport(
  */
 function generateFirestoreId(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes = new Uint8Array(20);
+  crypto.getRandomValues(bytes);
   let id = '';
   for (let i = 0; i < 20; i++) {
-    id += chars.charAt(Math.floor(Math.random() * chars.length));
+    id += chars.charAt(bytes[i] % chars.length);
   }
   return id;
 }
@@ -812,61 +820,59 @@ export async function saveUserProfile(profile: Partial<UserProfile> & { uid: str
     }
 
     const idToken = await currentUser.getIdToken();
-    const docUrl = `${FIRESTORE_API_URL}/users/${profile.uid}`;
-
-    // Get existing profile to merge with updates
-    const existing = await getUserProfile(profile.uid);
     const now = new Date();
 
-    const mins =
-      profile.personalMinimums ?? existing?.personalMinimums;
-
-    const firestoreDoc = {
-      fields: {
-        uid: jsToFirestoreValue(profile.uid),
-        name: jsToFirestoreValue(profile.name ?? existing?.name ?? ""),
-        email: jsToFirestoreValue(profile.email ?? existing?.email ?? ""),
-        homeAirport: jsToFirestoreValue(profile.homeAirport ?? existing?.homeAirport ?? ""),
-        experienceLevel: jsToFirestoreValue(profile.experienceLevel ?? existing?.experienceLevel ?? "private"),
-        defaultAircraft: jsToFirestoreValue(profile.defaultAircraft ?? existing?.defaultAircraft ?? "c172s"),
-        onboardingComplete: jsToFirestoreValue(profile.onboardingComplete ?? existing?.onboardingComplete ?? false),
-        minimumsEnabled: jsToFirestoreValue(
-          profile.minimumsEnabled ?? existing?.minimumsEnabled ?? false
-        ),
-        ...(mins
-          ? {
-              minimums_ceiling: jsToFirestoreValue(mins.ceiling),
-              minimums_visibility: jsToFirestoreValue(mins.visibility),
-              minimums_crosswind: jsToFirestoreValue(mins.crosswind),
-              minimums_maxWind: jsToFirestoreValue(mins.maxWind),
-              minimums_maxGust: jsToFirestoreValue(mins.maxGust),
-            }
-          : {}),
-        // Write role if explicitly provided, otherwise preserve existing
-        ...(profile.role
-          ? { role: jsToFirestoreValue(profile.role) }
-          : existing?.role
-            ? { role: jsToFirestoreValue(existing.role) }
-            : {}),
-        ...(profile.timezone || existing?.timezone
-          ? { timezone: jsToFirestoreValue(profile.timezone ?? existing?.timezone ?? "") }
-          : {}),
-        ...(profile.dailyBriefingEnabled !== undefined || existing?.dailyBriefingEnabled !== undefined
-          ? { dailyBriefingEnabled: jsToFirestoreValue(profile.dailyBriefingEnabled ?? existing?.dailyBriefingEnabled ?? false) }
-          : {}),
-        ...(profile.pushToken || existing?.pushToken
-          ? { pushToken: jsToFirestoreValue(profile.pushToken ?? existing?.pushToken ?? "") }
-          : {}),
-        ...(profile.assignedInstructorUid || existing?.assignedInstructorUid
-          ? { assignedInstructorUid: jsToFirestoreValue(profile.assignedInstructorUid ?? existing?.assignedInstructorUid ?? "") }
-          : {}),
-        ...(profile.assignedInstructorName || existing?.assignedInstructorName
-          ? { assignedInstructorName: jsToFirestoreValue(profile.assignedInstructorName ?? existing?.assignedInstructorName ?? "") }
-          : {}),
-        createdAt: jsToFirestoreValue(existing?.createdAt ?? now),
-        updatedAt: jsToFirestoreValue(now),
-      },
+    // Build only the fields that are provided (PATCH with updateMask)
+    const fields: Record<string, any> = {
+      uid: jsToFirestoreValue(profile.uid),
+      updatedAt: jsToFirestoreValue(now),
     };
+    const fieldPaths: string[] = ["uid", "updatedAt"];
+
+    // Always set createdAt on write — Firestore updateMask will create it on
+    // first save and leave it unchanged on subsequent saves because it's the
+    // same value being read back. We use a server-roundtrip-free approach:
+    // include createdAt only if this is a new profile (onboardingComplete being set).
+    if (profile.onboardingComplete !== undefined) {
+      fields.createdAt = jsToFirestoreValue(now);
+      fieldPaths.push("createdAt");
+    }
+
+    const optionalFields: Array<[keyof UserProfile, any]> = [
+      ["name", profile.name],
+      ["email", profile.email],
+      ["homeAirport", profile.homeAirport],
+      ["experienceLevel", profile.experienceLevel],
+      ["defaultAircraft", profile.defaultAircraft],
+      ["onboardingComplete", profile.onboardingComplete],
+      ["minimumsEnabled", profile.minimumsEnabled],
+      ["role", profile.role],
+      ["timezone", profile.timezone],
+      ["dailyBriefingEnabled", profile.dailyBriefingEnabled],
+      ["pushToken", profile.pushToken],
+      ["assignedInstructorUid", profile.assignedInstructorUid],
+      ["assignedInstructorName", profile.assignedInstructorName],
+    ];
+
+    for (const [key, value] of optionalFields) {
+      if (value !== undefined) {
+        fields[key] = jsToFirestoreValue(value);
+        fieldPaths.push(key);
+      }
+    }
+
+    if (profile.personalMinimums) {
+      const mins = profile.personalMinimums;
+      fields.minimums_ceiling = jsToFirestoreValue(mins.ceiling);
+      fields.minimums_visibility = jsToFirestoreValue(mins.visibility);
+      fields.minimums_crosswind = jsToFirestoreValue(mins.crosswind);
+      fields.minimums_maxWind = jsToFirestoreValue(mins.maxWind);
+      fields.minimums_maxGust = jsToFirestoreValue(mins.maxGust);
+      fieldPaths.push("minimums_ceiling", "minimums_visibility", "minimums_crosswind", "minimums_maxWind", "minimums_maxGust");
+    }
+
+    const mask = fieldPaths.map((f) => `updateMask.fieldPaths=${f}`).join("&");
+    const docUrl = `${FIRESTORE_API_URL}/users/${profile.uid}?${mask}`;
 
     const response = await fetch(docUrl, {
       method: "PATCH",
@@ -874,7 +880,7 @@ export async function saveUserProfile(profile: Partial<UserProfile> & { uid: str
         "Content-Type": "application/json",
         "Authorization": `Bearer ${idToken}`,
       },
-      body: JSON.stringify(firestoreDoc),
+      body: JSON.stringify({ fields }),
     });
 
     if (!response.ok) {

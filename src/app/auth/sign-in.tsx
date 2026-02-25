@@ -24,14 +24,24 @@ import {
 } from "@/services/firebase";
 import { useAuthStore } from "@/stores/auth-store";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isPasswordStrong(password: string): boolean {
+  return password.length >= 8 && /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
+}
+
 function PasswordStrengthBar({ password }: { password: string }) {
   if (password.length === 0) return null;
-  const color =
-    password.length >= 8 ? "#22c55e" : password.length >= 6 ? "#f59e0b" : "#ef4444";
-  const width = password.length >= 8 ? "100%" : password.length >= 6 ? "66%" : "33%";
+  const strong = isPasswordStrong(password);
+  const medium = password.length >= 6;
+  const color = strong ? "#22c55e" : medium ? "#f59e0b" : "#ef4444";
+  const width = strong ? "100%" : medium ? "66%" : "33%";
   return (
     <View style={strengthStyles.track}>
       <View style={[strengthStyles.fill, { width, backgroundColor: color }]} />
+      {!strong && password.length > 0 && (
+        <Text style={strengthStyles.hint}>8+ chars, letter + number required</Text>
+      )}
     </View>
   );
 }
@@ -46,6 +56,12 @@ const strengthStyles = StyleSheet.create({
   fill: {
     height: "100%",
     borderRadius: 1.5,
+  },
+  hint: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.5)",
+    marginTop: 4,
   },
 });
 
@@ -80,6 +96,17 @@ export default function SignInScreen() {
   const handleEmailAuth = async () => {
     if (!email || !password) {
       Alert.alert("Missing Fields", "Please enter email and password.");
+      return;
+    }
+    if (!EMAIL_REGEX.test(email)) {
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
+      return;
+    }
+    if (isSignUp && !isPasswordStrong(password)) {
+      Alert.alert(
+        "Weak Password",
+        "Password must be at least 8 characters with at least one letter and one number."
+      );
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -246,6 +273,8 @@ export default function SignInScreen() {
             <Pressable
               onPress={handleEmailAuth}
               disabled={loading}
+              accessibilityLabel={isSignUp ? "Create account" : "Sign in"}
+              accessibilityRole="button"
               style={({ pressed }) => [
                 styles.submitButton,
                 pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
@@ -279,6 +308,8 @@ export default function SignInScreen() {
             <Pressable
               onPress={handleGoogleSignIn}
               disabled={loading}
+              accessibilityLabel="Continue with Google"
+              accessibilityRole="button"
               style={({ pressed }) => [
                 styles.googleButton,
                 pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },

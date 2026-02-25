@@ -21,7 +21,7 @@ interface AuthStore {
   role: UserRole | null;
   onboardingComplete: boolean;
   completedOnboardingUsers: string[]; // Track UIDs of users who completed onboarding
-  setUser: (user: AuthUser | null) => void;
+  setUser: (user: AuthUser | null) => Promise<void>;
   setLoading: (loading: boolean) => void;
   completeOnboarding: () => void;
   loadUserProfile: (uid: string) => Promise<void>;
@@ -68,7 +68,7 @@ export const useAuthStore = create<AuthStore>()(
             onboardingComplete: true,
             completedOnboardingUsers: state.completedOnboardingUsers.includes(user.uid)
               ? state.completedOnboardingUsers
-              : [...state.completedOnboardingUsers, user.uid],
+              : [...state.completedOnboardingUsers, user.uid].slice(-50),
           }));
 
           // Save to Firestore
@@ -150,7 +150,7 @@ export const useAuthStore = create<AuthStore>()(
               role: (profile?.role as UserRole) ?? null,
               completedOnboardingUsers: state.completedOnboardingUsers.includes(uid)
                 ? state.completedOnboardingUsers
-                : [...state.completedOnboardingUsers, uid],
+                : [...state.completedOnboardingUsers, uid].slice(-50),
             }));
           } else {
             console.log("[Auth] No existing profile found or onboarding not complete");

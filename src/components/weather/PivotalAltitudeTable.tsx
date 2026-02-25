@@ -9,7 +9,7 @@ import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { useTheme } from "@/theme/ThemeProvider";
 import { CloudCard } from "@/components/ui/CloudCard";
 import { useUserStore } from "@/stores/user-store";
-import { useMetar } from "@/hooks/useMetar";
+import { useMetarBatch } from "@/hooks/useMetarBatch";
 import { findNearbyStationsByICAO } from "@/lib/route/nearby-stations";
 import { findStationCoords } from "@/lib/route/station-coords";
 import {
@@ -66,10 +66,12 @@ export function PivotalAltitudeTable({
     return findNearbyStationsByICAO(primaryIcao, 25, 3); // Get 3 nearby stations within 25nm
   }, [primaryIcao]);
 
-  // Fetch weather for nearby stations
-  const nearby1 = useMetar(nearbyStations[0]?.icao || null);
-  const nearby2 = useMetar(nearbyStations[1]?.icao || null);
-  const nearby3 = useMetar(nearbyStations[2]?.icao || null);
+  // Batch-fetch weather for nearby stations in a single request
+  const nearbyIcaos = useMemo(
+    () => nearbyStations.map((s) => s.icao),
+    [nearbyStations]
+  );
+  const nearbyBatch = useMetarBatch(nearbyIcaos);
 
   // Build station data array
   const stations: StationData[] = useMemo(() => {
@@ -81,42 +83,21 @@ export function PivotalAltitudeTable({
       },
     ];
 
-    if (nearbyStations[0] && nearby1.data?.normalized) {
-      result.push({
-        icao: nearbyStations[0].icao,
-        name: nearbyStations[0].name,
-        distance: Math.round(nearbyStations[0].distance),
-        metar: nearby1.data.normalized,
-      });
-    }
-
-    if (nearbyStations[1] && nearby2.data?.normalized) {
-      result.push({
-        icao: nearbyStations[1].icao,
-        name: nearbyStations[1].name,
-        distance: Math.round(nearbyStations[1].distance),
-        metar: nearby2.data.normalized,
-      });
-    }
-
-    if (nearbyStations[2] && nearby3.data?.normalized) {
-      result.push({
-        icao: nearbyStations[2].icao,
-        name: nearbyStations[2].name,
-        distance: Math.round(nearbyStations[2].distance),
-        metar: nearby3.data.normalized,
-      });
+    const batchData = nearbyBatch.data || {};
+    for (const ns of nearbyStations) {
+      const metar = batchData[ns.icao] ?? null;
+      if (metar) {
+        result.push({
+          icao: ns.icao,
+          name: ns.name,
+          distance: Math.round(ns.distance),
+          metar,
+        });
+      }
     }
 
     return result;
-  }, [
-    primaryIcao,
-    primaryMetar,
-    nearbyStations,
-    nearby1.data,
-    nearby2.data,
-    nearby3.data,
-  ]);
+  }, [primaryIcao, primaryMetar, nearbyStations, nearbyBatch.data]);
 
   // Calculate pivotal altitude range for each combination
   const calculatePA = (ias: number, station: StationData): string => {
@@ -163,7 +144,11 @@ export function PivotalAltitudeTable({
       </Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.tableContainer}>
+        <View
+          style={styles.tableContainer}
+          accessibilityRole="table"
+          accessibilityLabel={`Pivotal altitude table for ${stations.map(s => s.icao).join(', ')}`}
+        >
           {/* Header Row */}
           <View style={styles.headerRow}>
             <View style={styles.headerCell}>
