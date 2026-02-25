@@ -7,6 +7,7 @@ import {
   FIRESTORE_API_URL,
   firestoreValueToJS,
   jsToFirestoreValue,
+  safeCurrentUser,
 } from "./firebase";
 import type { TenantConfig, TenantBranding } from "@/stores/tenant-store";
 import type {
@@ -16,6 +17,8 @@ import type {
   BriefingChecklist,
 } from "@/lib/briefing/types";
 import type { UserRole } from "@/lib/auth/roles";
+import type { AssignedLesson, StudentFeedback, InstructorFeedback } from "@/lib/lessons/types";
+import type { TrainingPlan, TrainingPlanData, TrainingPlanLesson } from "@/lib/training-plans/types";
 
 // ===== Helper: Parse Firestore document fields =====
 
@@ -29,12 +32,109 @@ function parseDocFields(fields: Record<string, any>): Record<string, any> {
 
 // ===== Tenant CRUD =====
 
+/**
+ * Create a new flight school (tenant) directly in Firestore.
+ * Returns the tenant ID on success, null on failure.
+ */
+export async function createTenantDirect(opts: {
+  schoolName: string;
+  inviteCode: string;
+  adminEmail?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+}): Promise<string | null> {
+  if (!FIRESTORE_API_URL) return null;
+
+  try {
+    const currentUser = safeCurrentUser();
+    if (!currentUser) return null;
+
+    const idToken = await currentUser.getIdToken();
+    const code = opts.inviteCode.toUpperCase();
+
+    // Check for duplicate invite code first
+    const checkUrl = `${FIRESTORE_API_URL}:runQuery`;
+    const checkResp = await fetch(checkUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: "tenants" }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: "inviteCode" },
+              op: "EQUAL",
+              value: { stringValue: code },
+            },
+          },
+          limit: 1,
+        },
+      }),
+    });
+
+    if (checkResp.ok) {
+      const results = await checkResp.json();
+      if (results.find((r: any) => r.document)) {
+        console.warn("[TenantAPI] Invite code already in use:", code);
+        return null;
+      }
+    }
+
+    // Create the tenant document
+    const url = `${FIRESTORE_API_URL}/tenants`;
+    const fields: Record<string, any> = {
+      schoolName: jsToFirestoreValue(opts.schoolName.trim()),
+      inviteCode: jsToFirestoreValue(code),
+      adminEmail: jsToFirestoreValue(opts.adminEmail ?? null),
+      primaryColor: jsToFirestoreValue(opts.primaryColor ?? "#0c8ce9"),
+      secondaryColor: jsToFirestoreValue(opts.secondaryColor ?? "#083f6e"),
+      accentColor: jsToFirestoreValue(opts.accentColor ?? "#D4A853"),
+      briefingTemplates: jsToFirestoreValue(true),
+      cfiReview: jsToFirestoreValue(true),
+      studentProgress: jsToFirestoreValue(true),
+      schoolAnalytics: jsToFirestoreValue(true),
+      lessonPlans: jsToFirestoreValue(true),
+      dispatch: jsToFirestoreValue(true),
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ fields }),
+    });
+
+    if (!response.ok) {
+      console.error("[TenantAPI] Failed to create tenant:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const tenantId = data.name?.split("/").pop() ?? null;
+    console.log(`[TenantAPI] Created tenant "${opts.schoolName}" with ID ${tenantId} and code ${code}`);
+    return tenantId;
+  } catch (error) {
+    console.error("[TenantAPI] Failed to create tenant:", error);
+    return null;
+  }
+}
+
 export async function getTenantConfig(tenantId: string): Promise<TenantConfig | null> {
   if (!FIRESTORE_API_URL) return null;
 
   try {
+    const currentUser = safeCurrentUser();
+    const headers: Record<string, string> = {};
+    if (currentUser) {
+      const idToken = await currentUser.getIdToken();
+      headers.Authorization = `Bearer ${idToken}`;
+    }
+
     const url = `${FIRESTORE_API_URL}/tenants/${tenantId}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { headers });
     if (!response.ok) return null;
 
     const data = await response.json();
@@ -58,6 +158,7 @@ export async function getTenantConfig(tenantId: string): Promise<TenantConfig | 
         dispatch: fields.dispatch ?? false,
       },
       defaultTemplateIds: [],
+      adminEmail: fields.adminEmail ?? undefined,
     };
   } catch (error) {
     console.error("[TenantAPI] Failed to get tenant config:", error);
@@ -160,11 +261,18 @@ export async function getInstructorReviewQueue(
   if (!FIRESTORE_API_URL) return [];
 
   try {
-    // Use Firestore REST runQuery
+    // Use Firestore REST runQuery with auth
     const url = `${FIRESTORE_API_URL}:runQuery`;
+    const currentUser = safeCurrentUser();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (currentUser) {
+      const idToken = await currentUser.getIdToken();
+      headers.Authorization = `Bearer ${idToken}`;
+    }
+
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         structuredQuery: {
           from: [{ collectionId: "briefings" }],
@@ -232,7 +340,7 @@ export async function getInstructorReviewQueue(
         } as BriefingSubmission;
       });
   } catch (error) {
-    console.error("[TenantAPI] Failed to get review queue:", error);
+    console.warn("[TenantAPI] Failed to get review queue:", error);
     return [];
   }
 }
@@ -619,7 +727,9 @@ export async function saveLessonPlan(
       title: jsToFirestoreValue(plan.title),
       description: jsToFirestoreValue(plan.description),
       flightType: jsToFirestoreValue(plan.flightType),
+      requiredChecklistItems: jsToFirestoreValue(plan.requiredChecklistItems),
       maxFratScore: jsToFirestoreValue(plan.maxFratScore),
+      objectives: jsToFirestoreValue(plan.objectives),
       createdBy: jsToFirestoreValue(plan.createdBy),
       createdAt: jsToFirestoreValue(plan.createdAt || new Date().toISOString()),
     };
@@ -637,4 +747,744 @@ export async function saveLessonPlan(
     console.error("[TenantAPI] Failed to save lesson plan:", error);
     return null;
   }
+}
+
+export async function deleteLessonPlan(
+  tenantId: string,
+  lessonId: string
+): Promise<boolean> {
+  if (!FIRESTORE_API_URL) return false;
+
+  try {
+    const currentUser = safeCurrentUser();
+    if (!currentUser) return false;
+
+    const idToken = await currentUser.getIdToken();
+    const url = `${FIRESTORE_API_URL}/tenants/${tenantId}/lessons/${lessonId}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("[TenantAPI] Failed to delete lesson plan:", error);
+    return false;
+  }
+}
+
+// ===== Invite Code Flow =====
+
+export async function findTenantByInviteCode(
+  code: string
+): Promise<{ id: string; schoolName: string } | null> {
+  if (!FIRESTORE_API_URL) return null;
+
+  try {
+    const currentUser = safeCurrentUser();
+    if (!currentUser) return null;
+
+    const idToken = await currentUser.getIdToken();
+    const url = `${FIRESTORE_API_URL}:runQuery`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: "tenants" }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: "inviteCode" },
+              op: "EQUAL",
+              value: { stringValue: code.toUpperCase() },
+            },
+          },
+          limit: 1,
+        },
+      }),
+    });
+
+    if (!response.ok) return null;
+    const results = await response.json();
+
+    const doc = results.find((r: any) => r.document)?.document;
+    if (!doc) return null;
+
+    const fields = parseDocFields(doc.fields || {});
+    const id = doc.name.split("/").pop();
+    return {
+      id: id ?? "",
+      schoolName: (fields.schoolName as string) ?? "Flight School",
+    };
+  } catch (error) {
+    console.error("[TenantAPI] Failed to find tenant by invite code:", error);
+    return null;
+  }
+}
+
+export async function joinTenant(
+  uid: string,
+  tenantId: string
+): Promise<boolean> {
+  if (!FIRESTORE_API_URL) return false;
+
+  try {
+    const currentUser = safeCurrentUser();
+    if (!currentUser) return false;
+
+    const idToken = await currentUser.getIdToken();
+    const url = `${FIRESTORE_API_URL}/users/${uid}?updateMask.fieldPaths=tenantId`;
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        fields: {
+          tenantId: jsToFirestoreValue(tenantId),
+        },
+      }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("[TenantAPI] Failed to join tenant:", error);
+    return false;
+  }
+}
+
+// ===== School Instructors =====
+
+export async function getSchoolInstructors(
+  tenantId: string
+): Promise<Array<{ uid: string; name: string; role: string }>> {
+  if (!FIRESTORE_API_URL) return [];
+
+  try {
+    const url = `${FIRESTORE_API_URL}:runQuery`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: "users" }],
+          where: {
+            compositeFilter: {
+              op: "AND",
+              filters: [
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "tenantId" },
+                    op: "EQUAL",
+                    value: { stringValue: tenantId },
+                  },
+                },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "role" },
+                    op: "IN",
+                    value: {
+                      arrayValue: {
+                        values: [
+                          { stringValue: "instructor" },
+                          { stringValue: "school_admin" },
+                        ],
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) return [];
+    const results = await response.json();
+
+    return results
+      .filter((r: any) => r.document)
+      .map((r: any) => {
+        const doc = r.document;
+        const fields = parseDocFields(doc.fields || {});
+        const uid = doc.name.split("/").pop();
+        return {
+          uid,
+          name: (fields.name as string) ?? "Unknown",
+          role: (fields.role as string) ?? "instructor",
+        };
+      });
+  } catch (error) {
+    console.error("[TenantAPI] Failed to get school instructors:", error);
+    return [];
+  }
+}
+
+export async function assignInstructor(
+  studentUid: string,
+  instructorUid: string,
+  instructorName: string
+): Promise<boolean> {
+  if (!FIRESTORE_API_URL) return false;
+
+  try {
+    const currentUser = safeCurrentUser();
+    if (!currentUser) return false;
+
+    const idToken = await currentUser.getIdToken();
+    const url = `${FIRESTORE_API_URL}/users/${studentUid}?updateMask.fieldPaths=assignedInstructorUid&updateMask.fieldPaths=assignedInstructorName`;
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        fields: {
+          assignedInstructorUid: jsToFirestoreValue(instructorUid),
+          assignedInstructorName: jsToFirestoreValue(instructorName),
+        },
+      }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("[TenantAPI] Failed to assign instructor:", error);
+    return false;
+  }
+}
+
+// ===== Assigned Lessons =====
+
+export async function getStudentAssignedLessons(
+  tenantId: string,
+  studentUid: string
+): Promise<AssignedLesson[]> {
+  if (!FIRESTORE_API_URL) return [];
+
+  try {
+    const url = `${FIRESTORE_API_URL}:runQuery`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: "assigned_lessons", allDescendants: true }],
+          where: {
+            compositeFilter: {
+              op: "AND",
+              filters: [
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "tenantId" },
+                    op: "EQUAL",
+                    value: { stringValue: tenantId },
+                  },
+                },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "studentUid" },
+                    op: "EQUAL",
+                    value: { stringValue: studentUid },
+                  },
+                },
+              ],
+            },
+          },
+          orderBy: [{ field: { fieldPath: "scheduledDate" }, direction: "DESCENDING" }],
+          limit: 100,
+        },
+      }),
+    });
+
+    if (!response.ok) return [];
+    const results = await response.json();
+
+    return results
+      .filter((r: any) => r.document)
+      .map((r: any) => parseAssignedLesson(r.document));
+  } catch (error) {
+    console.error("[TenantAPI] Failed to get student lessons:", error);
+    return [];
+  }
+}
+
+export async function getInstructorAssignedLessons(
+  tenantId: string,
+  instructorUid: string
+): Promise<AssignedLesson[]> {
+  if (!FIRESTORE_API_URL) return [];
+
+  try {
+    const url = `${FIRESTORE_API_URL}:runQuery`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: "assigned_lessons", allDescendants: true }],
+          where: {
+            compositeFilter: {
+              op: "AND",
+              filters: [
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "tenantId" },
+                    op: "EQUAL",
+                    value: { stringValue: tenantId },
+                  },
+                },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "instructorUid" },
+                    op: "EQUAL",
+                    value: { stringValue: instructorUid },
+                  },
+                },
+              ],
+            },
+          },
+          orderBy: [{ field: { fieldPath: "scheduledDate" }, direction: "DESCENDING" }],
+          limit: 100,
+        },
+      }),
+    });
+
+    if (!response.ok) return [];
+    const results = await response.json();
+
+    return results
+      .filter((r: any) => r.document)
+      .map((r: any) => parseAssignedLesson(r.document));
+  } catch (error) {
+    console.error("[TenantAPI] Failed to get instructor lessons:", error);
+    return [];
+  }
+}
+
+export async function assignLesson(
+  tenantId: string,
+  lesson: Omit<AssignedLesson, "id">
+): Promise<string | null> {
+  if (!FIRESTORE_API_URL) return null;
+
+  try {
+    const url = `${FIRESTORE_API_URL}/tenants/${tenantId}/assigned_lessons`;
+    const fields: Record<string, any> = {
+      lessonPlanId: jsToFirestoreValue(lesson.lessonPlanId),
+      tenantId: jsToFirestoreValue(lesson.tenantId),
+      studentUid: jsToFirestoreValue(lesson.studentUid),
+      studentName: jsToFirestoreValue(lesson.studentName),
+      instructorUid: jsToFirestoreValue(lesson.instructorUid),
+      instructorName: jsToFirestoreValue(lesson.instructorName),
+      scheduledDate: jsToFirestoreValue(lesson.scheduledDate),
+      completedDate: jsToFirestoreValue(lesson.completedDate),
+      status: jsToFirestoreValue(lesson.status),
+      studentFeedback: jsToFirestoreValue(null),
+      instructorFeedback: jsToFirestoreValue(null),
+      lessonTitle: jsToFirestoreValue(lesson.lessonTitle),
+      lessonDescription: jsToFirestoreValue(lesson.lessonDescription),
+      flightType: jsToFirestoreValue(lesson.flightType),
+      objectives: jsToFirestoreValue(lesson.objectives),
+      createdAt: jsToFirestoreValue(lesson.createdAt || new Date().toISOString()),
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.name?.split("/").pop() ?? null;
+  } catch (error) {
+    console.error("[TenantAPI] Failed to assign lesson:", error);
+    return null;
+  }
+}
+
+export async function updateAssignedLessonStatus(
+  tenantId: string,
+  lessonId: string,
+  status: AssignedLesson["status"],
+  completedDate?: string
+): Promise<boolean> {
+  if (!FIRESTORE_API_URL) return false;
+
+  try {
+    let url = `${FIRESTORE_API_URL}/tenants/${tenantId}/assigned_lessons/${lessonId}?updateMask.fieldPaths=status`;
+    if (completedDate) {
+      url += "&updateMask.fieldPaths=completedDate";
+    }
+
+    const fields: Record<string, any> = {
+      status: jsToFirestoreValue(status),
+    };
+    if (completedDate) {
+      fields.completedDate = jsToFirestoreValue(completedDate);
+    }
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("[TenantAPI] Failed to update lesson status:", error);
+    return false;
+  }
+}
+
+export async function submitLessonFeedback(
+  tenantId: string,
+  lessonId: string,
+  feedback: StudentFeedback | InstructorFeedback,
+  feedbackType: "studentFeedback" | "instructorFeedback"
+): Promise<boolean> {
+  if (!FIRESTORE_API_URL) return false;
+
+  try {
+    const url = `${FIRESTORE_API_URL}/tenants/${tenantId}/assigned_lessons/${lessonId}?updateMask.fieldPaths=${feedbackType}`;
+
+    // Serialize feedback as a map value
+    const feedbackMap: Record<string, any> = {
+      text: jsToFirestoreValue(feedback.text),
+      submittedAt: jsToFirestoreValue(feedback.submittedAt),
+    };
+
+    if (feedbackType === "studentFeedback") {
+      const sf = feedback as StudentFeedback;
+      feedbackMap.areasOfStruggle = jsToFirestoreValue(sf.areasOfStruggle);
+    } else {
+      const inf = feedback as InstructorFeedback;
+      feedbackMap.performanceNotes = jsToFirestoreValue(inf.performanceNotes);
+    }
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fields: {
+          [feedbackType]: { mapValue: { fields: feedbackMap } },
+        },
+      }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("[TenantAPI] Failed to submit lesson feedback:", error);
+    return false;
+  }
+}
+
+// ===== Instructor Students =====
+
+export async function getInstructorStudents(
+  instructorUid: string,
+  tenantId: string
+): Promise<Array<{ uid: string; name: string; role: UserRole; email?: string; assignedInstructorUid?: string }>> {
+  if (!FIRESTORE_API_URL) return [];
+
+  try {
+    const url = `${FIRESTORE_API_URL}:runQuery`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: "users" }],
+          where: {
+            compositeFilter: {
+              op: "AND",
+              filters: [
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "tenantId" },
+                    op: "EQUAL",
+                    value: { stringValue: tenantId },
+                  },
+                },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "role" },
+                    op: "EQUAL",
+                    value: { stringValue: "student" },
+                  },
+                },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "assignedInstructorUid" },
+                    op: "EQUAL",
+                    value: { stringValue: instructorUid },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) return [];
+    const results = await response.json();
+
+    return results
+      .filter((r: any) => r.document)
+      .map((r: any) => {
+        const doc = r.document;
+        const fields = parseDocFields(doc.fields || {});
+        const uid = doc.name.split("/").pop();
+        return {
+          uid,
+          name: (fields.name as string) ?? "Unknown",
+          role: (fields.role as UserRole) ?? "student",
+          email: (fields.email as string) ?? undefined,
+          assignedInstructorUid: (fields.assignedInstructorUid as string) ?? undefined,
+        };
+      });
+  } catch (error) {
+    console.error("[TenantAPI] Failed to get instructor students:", error);
+    return [];
+  }
+}
+
+export async function getStudentCurriculumProgress(
+  studentUid: string,
+  tenantId: string
+): Promise<{ completedLessonIds: string[]; totalAssigned: number }> {
+  if (!FIRESTORE_API_URL) return { completedLessonIds: [], totalAssigned: 0 };
+
+  try {
+    const lessons = await getStudentAssignedLessons(tenantId, studentUid);
+    const completedLessonIds = lessons
+      .filter((l) => l.status === "completed")
+      .map((l) => l.lessonPlanId);
+    return { completedLessonIds, totalAssigned: lessons.length };
+  } catch (error) {
+    console.error("[TenantAPI] Failed to get curriculum progress:", error);
+    return { completedLessonIds: [], totalAssigned: 0 };
+  }
+}
+
+// ===== Assigned Lesson Parser =====
+
+function parseAssignedLesson(doc: any): AssignedLesson {
+  const fields = parseDocFields(doc.fields || {});
+  const id = doc.name.split("/").pop();
+
+  // Parse nested feedback maps
+  const rawStudentFb = doc.fields?.studentFeedback?.mapValue?.fields;
+  const rawInstructorFb = doc.fields?.instructorFeedback?.mapValue?.fields;
+
+  const studentFeedback: AssignedLesson["studentFeedback"] = rawStudentFb
+    ? {
+        text: firestoreValueToJS(rawStudentFb.text) ?? "",
+        areasOfStruggle: firestoreValueToJS(rawStudentFb.areasOfStruggle) ?? [],
+        submittedAt: firestoreValueToJS(rawStudentFb.submittedAt) ?? "",
+      }
+    : null;
+
+  const instructorFeedback: AssignedLesson["instructorFeedback"] = rawInstructorFb
+    ? {
+        text: firestoreValueToJS(rawInstructorFb.text) ?? "",
+        performanceNotes: firestoreValueToJS(rawInstructorFb.performanceNotes) ?? "",
+        submittedAt: firestoreValueToJS(rawInstructorFb.submittedAt) ?? "",
+      }
+    : null;
+
+  return {
+    id: id ?? "",
+    lessonPlanId: (fields.lessonPlanId as string) ?? "",
+    tenantId: (fields.tenantId as string) ?? "",
+    studentUid: (fields.studentUid as string) ?? "",
+    studentName: (fields.studentName as string) ?? "",
+    instructorUid: (fields.instructorUid as string) ?? "",
+    instructorName: (fields.instructorName as string) ?? "",
+    scheduledDate: (fields.scheduledDate as string) ?? "",
+    completedDate: (fields.completedDate as string) ?? null,
+    status: (fields.status as AssignedLesson["status"]) ?? "upcoming",
+    studentFeedback,
+    instructorFeedback,
+    lessonTitle: (fields.lessonTitle as string) ?? "",
+    lessonDescription: (fields.lessonDescription as string) ?? "",
+    flightType: (fields.flightType as any) ?? "local",
+    objectives: (fields.objectives as string[]) ?? [],
+    createdAt: (fields.createdAt as string) ?? "",
+  };
+}
+
+// ===== Training Plans =====
+
+export async function getSchoolTrainingPlans(
+  tenantId: string
+): Promise<TrainingPlan[]> {
+  if (!FIRESTORE_API_URL) return [];
+
+  try {
+    const url = `${FIRESTORE_API_URL}/tenants/${tenantId}/training_plans`;
+    const response = await fetch(url);
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    const documents = data.documents || [];
+
+    return documents.map((doc: any) => {
+      const fields = parseDocFields(doc.fields || {});
+      const id = doc.name.split("/").pop();
+      return {
+        id,
+        tenantId,
+        title: fields.title ?? "",
+        description: fields.description ?? "",
+        lessons: fields.lessons ?? [],
+        createdBy: fields.createdBy ?? "",
+        createdByName: fields.createdByName ?? "",
+        createdAt: fields.createdAt ?? new Date().toISOString(),
+        updatedAt: fields.updatedAt ?? new Date().toISOString(),
+      } as TrainingPlan;
+    });
+  } catch (error) {
+    console.error("[TenantAPI] Failed to get training plans:", error);
+    return [];
+  }
+}
+
+export async function saveTrainingPlan(
+  tenantId: string,
+  plan: TrainingPlanData
+): Promise<string | null> {
+  if (!FIRESTORE_API_URL) return null;
+
+  try {
+    const url = `${FIRESTORE_API_URL}/tenants/${tenantId}/training_plans`;
+    const fields: Record<string, any> = {
+      tenantId: jsToFirestoreValue(plan.tenantId),
+      title: jsToFirestoreValue(plan.title),
+      description: jsToFirestoreValue(plan.description),
+      lessons: jsToFirestoreValue(plan.lessons),
+      createdBy: jsToFirestoreValue(plan.createdBy),
+      createdByName: jsToFirestoreValue(plan.createdByName),
+      createdAt: jsToFirestoreValue(plan.createdAt || new Date().toISOString()),
+      updatedAt: jsToFirestoreValue(plan.updatedAt || new Date().toISOString()),
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.name?.split("/").pop() ?? null;
+  } catch (error) {
+    console.error("[TenantAPI] Failed to save training plan:", error);
+    return null;
+  }
+}
+
+export async function updateTrainingPlan(
+  tenantId: string,
+  planId: string,
+  plan: Partial<TrainingPlanData>
+): Promise<boolean> {
+  if (!FIRESTORE_API_URL) return false;
+
+  try {
+    const fieldPaths = ["title", "description", "lessons", "updatedAt"];
+    const mask = fieldPaths.map((f) => `updateMask.fieldPaths=${f}`).join("&");
+    const url = `${FIRESTORE_API_URL}/tenants/${tenantId}/training_plans/${planId}?${mask}`;
+
+    const fields: Record<string, any> = {
+      title: jsToFirestoreValue(plan.title ?? ""),
+      description: jsToFirestoreValue(plan.description ?? ""),
+      lessons: jsToFirestoreValue(plan.lessons ?? []),
+      updatedAt: jsToFirestoreValue(new Date().toISOString()),
+    };
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("[TenantAPI] Failed to update training plan:", error);
+    return false;
+  }
+}
+
+export async function deleteTrainingPlan(
+  tenantId: string,
+  planId: string
+): Promise<boolean> {
+  if (!FIRESTORE_API_URL) return false;
+
+  try {
+    const currentUser = safeCurrentUser();
+    if (!currentUser) return false;
+
+    const idToken = await currentUser.getIdToken();
+    const url = `${FIRESTORE_API_URL}/tenants/${tenantId}/training_plans/${planId}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("[TenantAPI] Failed to delete training plan:", error);
+    return false;
+  }
+}
+
+export async function applyTrainingPlanToStudent(
+  tenantId: string,
+  plan: TrainingPlan,
+  studentUid: string,
+  studentName: string,
+  instructorUid: string,
+  instructorName: string,
+  startDate: string
+): Promise<{ assigned: number; failed: number }> {
+  let assigned = 0;
+  let failed = 0;
+
+  const sortedLessons = [...plan.lessons].sort((a, b) => a.order - b.order);
+  const base = new Date(startDate);
+
+  for (let i = 0; i < sortedLessons.length; i++) {
+    const lesson = sortedLessons[i];
+    const scheduledDate = new Date(base);
+    scheduledDate.setDate(scheduledDate.getDate() + i);
+
+    const id = await assignLesson(tenantId, {
+      lessonPlanId: lesson.sourceId ?? lesson.id,
+      tenantId,
+      studentUid,
+      studentName,
+      instructorUid,
+      instructorName,
+      scheduledDate: scheduledDate.toISOString(),
+      completedDate: null,
+      status: "upcoming",
+      studentFeedback: null,
+      instructorFeedback: null,
+      lessonTitle: lesson.title,
+      lessonDescription: lesson.description,
+      flightType: lesson.flightType,
+      objectives: lesson.objectives,
+      createdAt: new Date().toISOString(),
+    });
+
+    if (id) {
+      assigned++;
+    } else {
+      failed++;
+    }
+  }
+
+  return { assigned, failed };
 }

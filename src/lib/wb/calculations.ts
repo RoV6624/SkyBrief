@@ -15,6 +15,7 @@ export interface WBResult {
   zfw: number;
   isOverweight: boolean;
   isCGInEnvelope: boolean;
+  isWeightOutOfEnvelope?: boolean;
   fwdLimit: number;
   aftLimit: number;
 }
@@ -94,6 +95,7 @@ export function calcTotalWB(
     zfw,
     isOverweight: totalWeight > aircraft.maxTakeoffWeight,
     isCGInEnvelope: checkCGInEnvelope(totalWeight, cg, aircraft.cgEnvelope),
+    isWeightOutOfEnvelope: aircraft.cgEnvelope.length > 0 && (totalWeight < aircraft.cgEnvelope[0].weight || totalWeight > aircraft.cgEnvelope[aircraft.cgEnvelope.length - 1].weight),
     fwdLimit: fwd,
     aftLimit: aft,
   };
@@ -138,6 +140,7 @@ export function calcLandingWB(
     zfw: takeoffResult.zfw,
     isOverweight: totalWeight > aircraft.maxLandingWeight,
     isCGInEnvelope: checkCGInEnvelope(totalWeight, cg, aircraft.cgEnvelope),
+    isWeightOutOfEnvelope: aircraft.cgEnvelope.length > 0 && (totalWeight < aircraft.cgEnvelope[0].weight || totalWeight > aircraft.cgEnvelope[aircraft.cgEnvelope.length - 1].weight),
     fwdLimit: fwd,
     aftLimit: aft,
   };

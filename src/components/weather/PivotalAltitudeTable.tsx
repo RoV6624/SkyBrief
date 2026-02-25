@@ -18,7 +18,7 @@ import {
   calculatePivotalAltitudeFromIAS,
   calculatePivotalAltitudeRange,
 } from "@/lib/aviation/pivotal-altitude";
-import { colors } from "@/theme/tokens";
+import { colors, radii } from "@/theme/tokens";
 import { useMemo } from "react";
 import type { NormalizedMetar } from "@/lib/api/types";
 
@@ -140,8 +140,10 @@ export function PivotalAltitudeTable({
     return null;
   }
 
+  const stripeBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)";
+
   return (
-    <CloudCard style={{ padding: 16 }}>
+    <CloudCard>
       <Text
         style={[
           styles.title,
@@ -156,15 +158,15 @@ export function PivotalAltitudeTable({
           { color: isDark ? theme.mutedForeground : colors.stratus[600] },
         ]}
       >
-        {aircraftId === "c172s" ? "Cessna 172S" : "Default Aircraft"} • 85-110
-        KIAS • AGL range for all headings
+        {aircraftId === "c172s" ? "Cessna 172S" : "Default Aircraft"} {"\u2022"} 85-110
+        KIAS {"\u2022"} AGL range for all headings
       </Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={styles.tableContainer}>
           {/* Header Row */}
-          <View style={styles.row}>
-            <View style={[styles.headerCell, styles.leftColumn]}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerCell}>
               <Text
                 style={[
                   styles.headerText,
@@ -175,7 +177,7 @@ export function PivotalAltitudeTable({
               </Text>
             </View>
 
-            {stations.map((station, idx) => (
+            {stations.map((station) => (
               <View key={station.icao} style={styles.headerCell}>
                 <Text
                   style={[
@@ -203,7 +205,7 @@ export function PivotalAltitudeTable({
                     ]}
                   >
                     {typeof station.metar.wind.direction === "number"
-                      ? `${String(station.metar.wind.direction).padStart(3, "0")}°`
+                      ? `${String(station.metar.wind.direction).padStart(3, "0")}\u00B0`
                       : "VRB"}
                     @{station.metar.wind.speed}kt
                   </Text>
@@ -213,15 +215,15 @@ export function PivotalAltitudeTable({
           </View>
 
           {/* Data Rows */}
-          {airspeeds.map((ias) => (
+          {airspeeds.map((ias, index) => (
             <View
               key={ias}
               style={[
                 styles.row,
-                { backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" },
+                index % 2 === 1 && { backgroundColor: stripeBg },
               ]}
             >
-              <View style={[styles.cell, styles.leftColumn]}>
+              <View style={styles.cell}>
                 <Text
                   style={[
                     styles.iasText,
@@ -274,59 +276,66 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 13,
+    fontFamily: "Inter_400Regular",
     marginBottom: 16,
   },
   tableContainer: {
-    borderRadius: 8,
+    borderRadius: radii.control,
     overflow: "hidden",
+    minWidth: "100%",
+  },
+  headerRow: {
+    flexDirection: "row",
+    marginBottom: 4,
   },
   row: {
     flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.1)",
+    borderRadius: 8,
   },
   headerCell: {
-    padding: 12,
-    minWidth: 90,
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    minWidth: 100,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  leftColumn: {
-    minWidth: 80,
-    backgroundColor: "rgba(255,255,255,0.08)",
   },
   cell: {
-    padding: 12,
-    minWidth: 90,
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    minWidth: 100,
     alignItems: "center",
     justifyContent: "center",
   },
   headerText: {
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     textAlign: "center",
   },
   distanceText: {
     fontSize: 10,
+    fontFamily: "Inter_400Regular",
     marginTop: 2,
   },
   windText: {
     fontSize: 10,
     marginTop: 2,
-    fontFamily: "monospace",
+    fontFamily: "JetBrainsMono_400Regular",
   },
   iasText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "SpaceGrotesk_600SemiBold",
   },
   paText: {
     fontSize: 14,
-    fontFamily: "monospace",
+    fontFamily: "JetBrainsMono_400Regular",
   },
   footnote: {
     fontSize: 11,
-    marginTop: 12,
+    fontFamily: "Inter_400Regular",
+    marginTop: 14,
     fontStyle: "italic",
+    lineHeight: 16,
   },
 });

@@ -6,7 +6,7 @@
  * Go/No-Go data and then approve, reject, or request revision.
  */
 
-import React, { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -14,18 +14,22 @@ import {
   RefreshControl,
   StyleSheet,
   Alert,
+  Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Send, Inbox } from "lucide-react-native";
+import { ArrowLeft, Send, Inbox, CheckCircle2 } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 
+import { useRouter } from "expo-router";
 import { useTheme } from "@/theme/ThemeProvider";
 import { colors } from "@/theme/tokens";
 import { useAuthStore } from "@/stores/auth-store";
 import { useTenantStore } from "@/stores/tenant-store";
 import { getDispatchQueue, updateDispatchStatus } from "@/services/dispatch-api";
 import { DispatchReviewCard } from "@/components/instructor/DispatchReviewCard";
+import { JoinSchoolModal } from "@/components/instructor/JoinSchoolModal";
 import type { DispatchStatus } from "@/lib/dispatch/types";
 
 // ---------------------------------------------------------------------------
@@ -34,6 +38,7 @@ import type { DispatchStatus } from "@/lib/dispatch/types";
 
 export default function DispatchQueueScreen() {
   const { isDark } = useTheme();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const { tenantId } = useTenantStore();
@@ -53,6 +58,7 @@ export default function DispatchQueueScreen() {
   });
 
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+  const [showJoinModal, setShowJoinModal] = useState(false);
 
   const handleRefresh = useCallback(async () => {
     await refetch();
@@ -107,6 +113,9 @@ export default function DispatchQueueScreen() {
         >
           {/* Header */}
           <Animated.View entering={FadeInDown.delay(50)} style={styles.header}>
+            <Pressable onPress={() => router.back()} hitSlop={12}>
+              <ArrowLeft size={22} color={isDark ? "#FFFFFF" : colors.stratus[800]} />
+            </Pressable>
             <Send size={22} color={colors.accent} />
             <Text
               style={[
@@ -151,19 +160,54 @@ export default function DispatchQueueScreen() {
 
           {/* Cards */}
           {queue &&
-            queue.map((dispatchPacket, index) => (
-              <Animated.View
-                key={dispatchPacket.id}
-                entering={FadeInDown.delay(150 + index * 50)}
-              >
-                <DispatchReviewCard
-                  dispatch={dispatchPacket}
-                  onAction={(action, comment) =>
-                    handleAction(dispatchPacket.id, action, comment)
-                  }
-                />
-              </Animated.View>
-            ))}
+            queue.map((dispatchPacket, index) => {
+              const isQuickApprovable =
+                dispatchPacket.fratResult?.riskLevel === "low" &&
+                dispatchPacket.wbSnapshot?.withinLimits === true;
+
+              return (
+                <Animated.View
+                  key={dispatchPacket.id}
+                  entering={FadeInDown.delay(150 + index * 50)}
+                  style={styles.cardWrapper}
+                >
+                  {isQuickApprovable && (
+                    <Pressable
+                      onPress={() => {
+                        Haptics.notificationAsync(
+                          Haptics.NotificationFeedbackType.Success
+                        );
+                        Alert.alert(
+                          "Approve Dispatch",
+                          "Are you sure you want to approve this dispatch?",
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            { text: "Approve", onPress: () => handleAction(dispatchPacket.id, "approved") },
+                          ]
+                        );
+                      }}
+                      disabled={processingIds.has(dispatchPacket.id)}
+                      style={[
+                        styles.quickApproveBtn,
+                        {
+                          opacity: processingIds.has(dispatchPacket.id) ? 0.5 : 1,
+                        },
+                      ]}
+                      accessibilityLabel="Quick approve dispatch"
+                    >
+                      <CheckCircle2 size={16} color="#FFFFFF" />
+                      <Text style={styles.quickApproveBtnText}>Approve</Text>
+                    </Pressable>
+                  )}
+                  <DispatchReviewCard
+                    dispatch={dispatchPacket}
+                    onAction={(action, comment) =>
+                      handleAction(dispatchPacket.id, action, comment)
+                    }
+                  />
+                </Animated.View>
+              );
+            })}
 
           {/* Empty state */}
           {queue && queue.length === 0 && !isLoading && (
@@ -239,13 +283,27 @@ export default function DispatchQueueScreen() {
                   },
                 ]}
               >
-                Ask your school administrator for an invitation code to join
+                Enter your school's invitation code to get started
               </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setShowJoinModal(true);
+                }}
+                style={styles.joinSchoolBtn}
+              >
+                <Text style={styles.joinSchoolBtnText}>Join School</Text>
+              </Pressable>
             </Animated.View>
           )}
 
           <View style={{ height: 100 }} />
         </ScrollView>
+
+        <JoinSchoolModal
+          visible={showJoinModal}
+          onClose={() => setShowJoinModal(false)}
+        />
       </SafeAreaView>
     </View>
   );
@@ -297,5 +355,44 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 20,
     lineHeight: 19,
+  },
+  cardWrapper: {
+    position: "relative",
+  },
+  quickApproveBtn: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.alert.green,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  quickApproveBtnText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "#FFFFFF",
+  },
+  joinSchoolBtn: {
+    marginTop: 8,
+    backgroundColor: colors.accent,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 10,
+  },
+  joinSchoolBtnText: {
+    fontSize: 15,
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    color: "#FFFFFF",
   },
 });

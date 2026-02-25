@@ -13,9 +13,9 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, useReducedMotion } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { Mail, Lock, ArrowLeft, CloudSun, LogIn } from "lucide-react-native";
+import { Mail, Lock, ArrowLeft, CloudSun, Eye, EyeOff } from "lucide-react-native";
 import {
   signInWithGoogle,
   signInWithEmail,
@@ -51,11 +51,13 @@ const strengthStyles = StyleSheet.create({
 
 export default function SignInScreen() {
   const router = useRouter();
+  const reducedMotion = useReducedMotion();
   const { setUser } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleGoogleSignIn = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -141,7 +143,7 @@ export default function SignInScreen() {
 
           {/* Logo */}
           <Animated.View
-            entering={FadeInDown.delay(100).springify()}
+            entering={reducedMotion ? undefined : FadeInDown.delay(100).springify()}
             style={styles.logo}
           >
             <CloudSun size={36} color="#ffffff" strokeWidth={1.5} />
@@ -149,7 +151,7 @@ export default function SignInScreen() {
           </Animated.View>
 
           {/* Segmented Auth Toggle */}
-          <Animated.View entering={FadeInDown.delay(150)} style={styles.segmentContainer}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(150)} style={styles.segmentContainer}>
             <Pressable
               onPress={() => {
                 Haptics.selectionAsync();
@@ -185,7 +187,7 @@ export default function SignInScreen() {
           </Animated.View>
 
           {/* Title */}
-          <Animated.View entering={FadeInDown.delay(200)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(200)}>
             <Text style={styles.title}>
               {isSignUp ? "Create Account" : "Welcome Back"}
             </Text>
@@ -197,7 +199,7 @@ export default function SignInScreen() {
           </Animated.View>
 
           {/* Email/Password Form */}
-          <Animated.View entering={FadeInDown.delay(300)} style={styles.form}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(300)} style={styles.form}>
             {/* Email */}
             <View style={styles.inputContainer}>
               <Mail size={18} color="rgba(255,255,255,0.6)" />
@@ -222,9 +224,20 @@ export default function SignInScreen() {
                   onChangeText={setPassword}
                   placeholder="Password"
                   placeholderTextColor="rgba(255,255,255,0.4)"
-                  secureTextEntry
+                  secureTextEntry={!showPassword}
                   style={styles.input}
                 />
+                <Pressable
+                  onPress={() => setShowPassword((v) => !v)}
+                  hitSlop={12}
+                  accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff size={18} color="rgba(255,255,255,0.6)" />
+                  ) : (
+                    <Eye size={18} color="rgba(255,255,255,0.6)" />
+                  )}
+                </Pressable>
               </View>
               {isSignUp && <PasswordStrengthBar password={password} />}
             </View>
@@ -272,7 +285,9 @@ export default function SignInScreen() {
                 loading && { opacity: 0.6 },
               ]}
             >
-              <LogIn size={18} color="#ffffff" />
+              <View style={styles.googleIcon}>
+                <Text style={styles.googleIconText}>G</Text>
+              </View>
               <Text style={styles.googleText}>Continue with Google</Text>
             </Pressable>
           </Animated.View>
@@ -416,6 +431,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.25)",
     paddingVertical: 14,
+  },
+  googleIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  googleIconText: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: "#4285F4",
   },
   googleText: {
     fontSize: 15,

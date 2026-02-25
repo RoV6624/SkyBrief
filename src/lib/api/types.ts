@@ -93,18 +93,21 @@ export interface PirepResponse {
   rawOb: string;
 }
 
-// ===== NOTAM Types =====
+// ===== NOTAM Types (FAA NOTAM API v1) =====
 
 export interface NotamResponse {
-  icaoId: string;
-  notamId: string;
+  id: string;
+  number: string;
+  series?: string;
+  type: string;
+  issued: string; // ISO 8601
+  effectiveStart: string; // ISO 8601
+  effectiveEnd: string; // ISO 8601
   text: string;
-  startTime: number; // UNIX epoch
-  endTime: number; // UNIX epoch
-  estimatedEnd: boolean;
   classification: string;
   accountId: string;
-  type?: string;
+  lastUpdated: string; // ISO 8601
+  icaoLocation: string;
   affectedFIR?: string;
   selectionCode?: string;
   traffic?: string;
@@ -114,6 +117,15 @@ export interface NotamResponse {
   maximumFL?: number;
   coordinates?: string;
   radius?: number;
+  location?: string;
+}
+
+export interface FaaNotamApiResponse {
+  pageSize: number;
+  pageNum: number;
+  totalNotamCount: number;
+  totalPageCount: number;
+  items: NotamResponse[];
 }
 
 // ===== Domain Models =====
@@ -142,6 +154,7 @@ export interface NormalizedMetar {
   presentWeather: string | null;
   rawText: string;
   location: { lat: number; lon: number; elevation: number };
+  isDegraded?: boolean;
 }
 
 export interface AiBriefing {

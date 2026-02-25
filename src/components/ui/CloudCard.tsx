@@ -19,7 +19,6 @@ export function CloudCard({ children, style }: CloudCardProps) {
         style={[
           styles.container,
           {
-            borderColor: theme.card.border,
             ...shadows.cloud,
             zIndex: 1,
           },
@@ -43,7 +42,6 @@ export function CloudCard({ children, style }: CloudCardProps) {
         styles.container,
         {
           backgroundColor: isDark ? "rgba(30,30,35,0.92)" : "rgba(255,255,255,0.88)",
-          borderColor: theme.card.border,
           ...shadows.cloud,
           zIndex: 1,
         },
@@ -58,7 +56,6 @@ export function CloudCard({ children, style }: CloudCardProps) {
 const styles = StyleSheet.create({
   container: {
     borderRadius: radii.cloud,
-    borderWidth: 1,
     overflow: "hidden",
   },
   blur: {

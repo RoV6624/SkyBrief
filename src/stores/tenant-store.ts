@@ -20,6 +20,7 @@ export interface TenantConfig {
     dispatch: boolean;
   };
   defaultTemplateIds: string[];
+  adminEmail?: string;
 }
 
 interface TenantStore {

@@ -4,11 +4,11 @@
  * Roles:
  * - student: Full briefing features, submit briefings for CFI review
  * - instructor: Review/approve student briefings, view student analytics
- * - chief_instructor: School-wide analytics, manage templates, configure school
+ * - school_admin: School-wide analytics, manage templates, configure school
  * - admin: Multi-tenant management, system administration
  */
 
-export type UserRole = "student" | "instructor" | "chief_instructor" | "admin" | "pilot";
+export type UserRole = "student" | "instructor" | "school_admin" | "admin" | "pilot";
 
 export interface RolePermissions {
   canBrief: boolean;
@@ -64,7 +64,7 @@ const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canDispatch: true,
     canApproveDispatch: true,
   },
-  chief_instructor: {
+  school_admin: {
     canBrief: true,
     canSubmitForReview: false,
     canReviewBriefings: true,
@@ -110,17 +110,24 @@ export function hasPermission(
 }
 
 /**
- * Check if role is an instructor-type role (CFI or Chief)
+ * Check if role is an instructor-type role (teaching role only)
  */
 export function isInstructorRole(role: UserRole): boolean {
-  return role === "instructor" || role === "chief_instructor";
+  return role === "instructor";
 }
 
 /**
  * Check if role has school management capabilities
  */
 export function isSchoolManager(role: UserRole): boolean {
-  return role === "chief_instructor" || role === "admin";
+  return role === "school_admin" || role === "admin";
+}
+
+/**
+ * Check if role can access the instructor/admin hub
+ */
+export function isStaffRole(role: UserRole): boolean {
+  return role === "instructor" || role === "school_admin" || role === "admin";
 }
 
 /**
@@ -132,8 +139,8 @@ export function getRoleDisplayName(role: UserRole): string {
       return "Student Pilot";
     case "instructor":
       return "Flight Instructor (CFI)";
-    case "chief_instructor":
-      return "Chief Flight Instructor";
+    case "school_admin":
+      return "School Administrator";
     case "admin":
       return "Administrator";
     case "pilot":
@@ -154,7 +161,7 @@ export function getRoleLevel(role: UserRole): number {
       return 1;
     case "instructor":
       return 2;
-    case "chief_instructor":
+    case "school_admin":
       return 3;
     case "admin":
       return 4;

@@ -11,44 +11,50 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, useReducedMotion } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { User, Plane, ChevronRight } from "lucide-react-native";
 import { useUserStore } from "@/stores/user-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { StepProgressBar } from "@/components/onboarding/StepProgressBar";
+import { StepProgressBar, getOnboardingStepConfig } from "@/components/onboarding/StepProgressBar";
 
 const EXPERIENCE_LEVELS = [
   { value: "student" as const, label: "Student Pilot", emoji: "📚" },
   { value: "private" as const, label: "Private Pilot", emoji: "🛩" },
   { value: "commercial" as const, label: "Commercial", emoji: "✈️" },
   { value: "atp" as const, label: "ATP", emoji: "🏅" },
+  { value: "instructor" as const, label: "Instructor (CFI)", emoji: "🎓" },
 ];
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const reducedMotion = useReducedMotion();
   const { user } = useAuthStore();
-  const { setProfile, setHomeAirport, setExperienceLevel, markConfigured } = useUserStore();
+  const { setProfile, setHomeAirport, setExperienceLevel } = useUserStore();
 
   const [name, setName] = useState(user?.displayName || "");
   const [homeIcao, setHomeIcao] = useState("");
   const [experience, setExperience] = useState<
-    "student" | "private" | "commercial" | "atp"
-  >("private");
+    "student" | "private" | "commercial" | "atp" | "instructor" | null
+  >(null);
 
   const isValid =
     name.trim().length > 0 &&
     homeIcao.length >= 3 &&
-    homeIcao.length <= 4;
+    homeIcao.length <= 4 &&
+    experience !== null;
 
   const handleNext = () => {
     if (!isValid) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setProfile(name.trim(), user?.email || "");
     setHomeAirport(homeIcao.toUpperCase());
-    setExperienceLevel(experience);
-    markConfigured();
-    router.push("/onboarding/minimums");
+    setExperienceLevel(experience!);
+    if (experience === "student" || experience === "instructor") {
+      router.push("/onboarding/join-school");
+    } else {
+      router.push("/onboarding/minimums");
+    }
   };
 
   return (
@@ -65,11 +71,15 @@ export default function ProfileScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Step indicator */}
-          <Animated.View entering={FadeInDown.delay(100)}>
-            <StepProgressBar currentStep={1} />
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)}>
+            <StepProgressBar
+              currentStep={1}
+              totalSteps={getOnboardingStepConfig(experience ?? "private").totalSteps}
+              stepLabels={getOnboardingStepConfig(experience ?? "private").labels}
+            />
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(200)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(200)}>
             <Text style={styles.title}>Pilot Profile</Text>
             <Text style={styles.subtitle}>
               Tell us about yourself so we can personalize your briefings
@@ -77,7 +87,7 @@ export default function ProfileScreen() {
           </Animated.View>
 
           {/* Name */}
-          <Animated.View entering={FadeInDown.delay(300)} style={styles.field}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(300)} style={styles.field}>
             <Text style={styles.label}>Name</Text>
             <View style={styles.inputRow}>
               <User size={18} color="rgba(255,255,255,0.6)" />
@@ -92,7 +102,7 @@ export default function ProfileScreen() {
           </Animated.View>
 
           {/* Home Airport */}
-          <Animated.View entering={FadeInDown.delay(400)} style={styles.field}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(400)} style={styles.field}>
             <Text style={styles.label}>Home Airport (ICAO)</Text>
             <View
               style={[
@@ -117,7 +127,7 @@ export default function ProfileScreen() {
           </Animated.View>
 
           {/* Experience Level */}
-          <Animated.View entering={FadeInDown.delay(500)} style={styles.field}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(500)} style={styles.field}>
             <Text style={styles.label}>Experience Level</Text>
             <View style={styles.expGrid}>
               {EXPERIENCE_LEVELS.map((level) => (
@@ -148,7 +158,7 @@ export default function ProfileScreen() {
 
           {/* Next Button */}
           <View style={styles.footer}>
-            <Animated.View entering={FadeInDown.delay(600)}>
+            <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(600)}>
               <Pressable
                 onPress={handleNext}
                 disabled={!isValid}

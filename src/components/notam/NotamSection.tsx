@@ -18,8 +18,8 @@ export function NotamSection({ station, delay = 0 }: NotamSectionProps) {
   const { theme, isDark } = useTheme();
   const [expanded, setExpanded] = useState(false);
 
-  // Fetch live NOTAMs from aviationweather.gov
-  const { data: notams = [], isLoading, error } = useNotams(station);
+  const { data: notams = [], isLoading, error, refetch } = useNotams(station);
+  const isMissingCredentials = error?.message?.includes("credentials not configured");
   const highPriorityCount = notams.filter((n) => n.priority === "high").length;
 
   return (
@@ -103,8 +103,37 @@ export function NotamSection({ station, delay = 0 }: NotamSectionProps) {
                     { color: colors.alert.amber },
                   ]}
                 >
-                  Failed to load NOTAMs
+                  {isMissingCredentials
+                    ? "FAA API credentials required"
+                    : "Failed to load NOTAMs"}
                 </Text>
+                {isMissingCredentials ? (
+                  <Text
+                    style={[
+                      styles.emptyText,
+                      {
+                        color: isDark
+                          ? "rgba(255,255,255,0.4)"
+                          : colors.stratus[400],
+                        fontSize: 10,
+                        textAlign: "center",
+                        paddingHorizontal: 12,
+                      },
+                    ]}
+                  >
+                    Add FAA NOTAM API keys to .env{"\n"}Register free at api.faa.gov
+                  </Text>
+                ) : (
+                  <Pressable
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      refetch();
+                    }}
+                    style={styles.retryButton}
+                  >
+                    <Text style={styles.retryText}>Retry</Text>
+                  </Pressable>
+                )}
               </View>
             ) : notams.length === 0 ? (
               <View style={styles.emptyState}>
@@ -179,5 +208,19 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
+  },
+  retryButton: {
+    marginTop: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  retryText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.7)",
   },
 });

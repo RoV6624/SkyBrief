@@ -14,7 +14,7 @@ import {
   Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, useReducedMotion } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   CheckCircle2,
+  X,
 } from "lucide-react-native";
 
 import { DynamicSkyBackground } from "@/components/background/DynamicSkyBackground";
@@ -33,6 +34,7 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { colors } from "@/theme/tokens";
 import { useRouteBriefing } from "@/hooks/useRouteBriefing";
 import { useContentWidth } from "@/hooks/useContentWidth";
+import { useXCWizardStore } from "@/stores/xc-wizard-store";
 import type { FlightCategory } from "@/lib/api/types";
 
 const CAT_COLORS: Record<FlightCategory, string> = {
@@ -43,13 +45,19 @@ const CAT_COLORS: Record<FlightCategory, string> = {
 };
 
 export default function XCWizardWeatherScreen() {
+  const reducedMotion = useReducedMotion();
   const { isDark } = useTheme();
   const router = useRouter();
   const { waypoints: wpParam } = useLocalSearchParams<{ waypoints: string }>();
   const scene = useSceneStore((s) => s.scene);
   const contentWidth = useContentWidth();
+  const xcStore = useXCWizardStore();
 
-  const waypoints = useMemo(() => (wpParam ?? "").split(",").filter(Boolean), [wpParam]);
+  const waypoints = useMemo(() => {
+    const fromStore = xcStore.waypoints.filter((w) => w.trim().length >= 3);
+    if (fromStore.length >= 2) return fromStore;
+    return (wpParam ?? "").split(",").filter(Boolean);
+  }, [wpParam, xcStore.waypoints]);
   const { data: briefing, isLoading } = useRouteBriefing(waypoints);
 
   const textColor = isDark ? "#FFFFFF" : colors.stratus[900];
@@ -73,8 +81,19 @@ export default function XCWizardWeatherScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
+          {/* Close Button */}
+          <View style={styles.closeRow}>
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); router.dismissAll(); }}
+              hitSlop={12}
+              style={styles.closeBtn}
+            >
+              <X size={22} color="rgba(255,255,255,0.6)" />
+            </Pressable>
+          </View>
+
           {/* Step Indicator */}
-          <Animated.View entering={FadeInDown} style={styles.stepRow}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown} style={styles.stepRow}>
             <View style={[styles.stepDot, styles.stepDone]} />
             <View style={[styles.stepLine, styles.stepLineDone]} />
             <View style={[styles.stepDot, styles.stepActive]} />
@@ -84,7 +103,7 @@ export default function XCWizardWeatherScreen() {
             <View style={styles.stepDot} />
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(50)} style={styles.header}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(50)} style={styles.header}>
             <CloudSun size={22} color="#ffffff" strokeWidth={1.8} />
             <View>
               <Text style={styles.stepLabel}>STEP 2 OF 4</Text>
@@ -105,7 +124,7 @@ export default function XCWizardWeatherScreen() {
             <>
               {/* Hazard Summary */}
               {hazardCount > 0 && (
-                <Animated.View entering={FadeInDown.delay(100)} style={styles.hazardBanner}>
+                <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)} style={styles.hazardBanner}>
                   <AlertTriangle size={18} color="#FFFFFF" />
                   <Text style={styles.hazardText}>
                     {hazardCount} station{hazardCount > 1 ? "s" : ""} reporting IFR/LIFR conditions
@@ -114,7 +133,7 @@ export default function XCWizardWeatherScreen() {
               )}
 
               {hazardCount === 0 && (
-                <Animated.View entering={FadeInDown.delay(100)} style={styles.clearBanner}>
+                <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)} style={styles.clearBanner}>
                   <CheckCircle2 size={18} color="#FFFFFF" />
                   <Text style={styles.clearText}>All stations reporting VFR or MVFR</Text>
                 </Animated.View>
@@ -129,7 +148,7 @@ export default function XCWizardWeatherScreen() {
                 return (
                   <Animated.View
                     key={wp.waypoint.icao}
-                    entering={FadeInDown.delay(150 + idx * 50)}
+                    entering={reducedMotion ? undefined : FadeInDown.delay(150 + idx * 50)}
                   >
                     <CloudCard style={styles.stationCard}>
                       <View style={styles.stationHeader}>
@@ -229,6 +248,19 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center" as const,
     gap: 12,
+  },
+  closeRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingTop: 12,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   stepRow: {
     flexDirection: "row",

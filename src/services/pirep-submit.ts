@@ -145,6 +145,17 @@ export async function submitPirep(
 }
 
 /**
+ * Sky condition options for UI display
+ */
+export const SKY_CONDITION_OPTIONS: Array<{ value: SkyCondition; label: string }> = [
+  { value: "CLR", label: "Clear" },
+  { value: "FEW", label: "Few" },
+  { value: "SCT", label: "Scattered" },
+  { value: "BKN", label: "Broken" },
+  { value: "OVC", label: "Overcast" },
+];
+
+/**
  * Turbulence labels for UI display
  */
 export const TURBULENCE_OPTIONS: Array<{ value: TurbulenceIntensity; label: string; description: string }> = [

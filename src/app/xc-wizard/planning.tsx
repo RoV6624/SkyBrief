@@ -13,7 +13,7 @@ import {
   Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, useReducedMotion } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
@@ -24,6 +24,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   CheckCircle2,
+  X,
 } from "lucide-react-native";
 
 import { DynamicSkyBackground } from "@/components/background/DynamicSkyBackground";
@@ -36,15 +37,22 @@ import { calcTotalWB } from "@/lib/wb/calculations";
 import { useRouteBriefing } from "@/hooks/useRouteBriefing";
 import { calculateNavLog } from "@/lib/navlog/calculate";
 import { useContentWidth } from "@/hooks/useContentWidth";
+import { useXCWizardStore } from "@/stores/xc-wizard-store";
 
 export default function XCWizardPlanningScreen() {
+  const reducedMotion = useReducedMotion();
   const { isDark } = useTheme();
   const router = useRouter();
   const { waypoints: wpParam } = useLocalSearchParams<{ waypoints: string }>();
   const scene = useSceneStore((s) => s.scene);
   const contentWidth = useContentWidth();
+  const xcStore = useXCWizardStore();
 
-  const waypoints = useMemo(() => (wpParam ?? "").split(",").filter(Boolean), [wpParam]);
+  const waypoints = useMemo(() => {
+    const fromStore = xcStore.waypoints.filter((w) => w.trim().length >= 3);
+    if (fromStore.length >= 2) return fromStore;
+    return (wpParam ?? "").split(",").filter(Boolean);
+  }, [wpParam, xcStore.waypoints]);
   const { data: briefing } = useRouteBriefing(waypoints);
 
   const {
@@ -89,8 +97,19 @@ export default function XCWizardPlanningScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
+          {/* Close Button */}
+          <View style={styles.closeRow}>
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); router.dismissAll(); }}
+              hitSlop={12}
+              style={styles.closeBtn}
+            >
+              <X size={22} color="rgba(255,255,255,0.6)" />
+            </Pressable>
+          </View>
+
           {/* Step Indicator */}
-          <Animated.View entering={FadeInDown} style={styles.stepRow}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown} style={styles.stepRow}>
             <View style={[styles.stepDot, styles.stepDone]} />
             <View style={[styles.stepLine, styles.stepLineDone]} />
             <View style={[styles.stepDot, styles.stepDone]} />
@@ -100,7 +119,7 @@ export default function XCWizardPlanningScreen() {
             <View style={styles.stepDot} />
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(50)} style={styles.header}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(50)} style={styles.header}>
             <Scale size={22} color="#ffffff" strokeWidth={1.8} />
             <View>
               <Text style={styles.stepLabel}>STEP 3 OF 4</Text>
@@ -113,7 +132,7 @@ export default function XCWizardPlanningScreen() {
           </Text>
 
           {/* Weight & Balance Card */}
-          <Animated.View entering={FadeInDown.delay(100)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)}>
             <CloudCard style={styles.card}>
               <View style={styles.cardHeader}>
                 <Scale size={18} color={subColor} />
@@ -173,7 +192,7 @@ export default function XCWizardPlanningScreen() {
           </Animated.View>
 
           {/* Fuel Card */}
-          <Animated.View entering={FadeInDown.delay(150)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(150)}>
             <CloudCard style={styles.card}>
               <View style={styles.cardHeader}>
                 <Fuel size={18} color={subColor} />
@@ -228,7 +247,7 @@ export default function XCWizardPlanningScreen() {
           </Animated.View>
 
           {/* Risk Assessment Card */}
-          <Animated.View entering={FadeInDown.delay(200)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(200)}>
             <CloudCard style={styles.card}>
               <View style={styles.cardHeader}>
                 <ShieldCheck size={18} color={subColor} />
@@ -287,6 +306,19 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center" as const,
     gap: 12,
+  },
+  closeRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingTop: 12,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   stepRow: {
     flexDirection: "row",

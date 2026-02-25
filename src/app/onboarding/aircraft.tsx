@@ -2,23 +2,29 @@ import { useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, useReducedMotion } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { Plane, ChevronRight, Check, Plus } from "lucide-react-native";
+import { Plane, ChevronRight, Check, Plus, ArrowLeft } from "lucide-react-native";
 import { useUserStore } from "@/stores/user-store";
 import { AIRCRAFT_DATABASE } from "@/lib/wb/aircraft-types";
 import type { CustomAircraftProfile } from "@/lib/wb/aircraft-types";
-import { StepProgressBar } from "@/components/onboarding/StepProgressBar";
+import { StepProgressBar, getOnboardingStepConfig } from "@/components/onboarding/StepProgressBar";
 import { CustomAircraftModal } from "@/components/aircraft/CustomAircraftModal";
 
 export default function AircraftScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const {
     defaultAircraft,
     setDefaultAircraft,
     customAircraft,
     addCustomAircraft,
+    experienceLevel,
   } = useUserStore();
+  const stepConfig = getOnboardingStepConfig(experienceLevel);
+  const currentStep = experienceLevel === "student" ? 5 : experienceLevel === "instructor" ? 4 : 3;
   const [showCustomModal, setShowCustomModal] = useState(false);
 
   const handleNext = () => {
@@ -31,15 +37,28 @@ export default function AircraftScreen() {
       colors={["#1e90ff", "#87ceeb", "#b0d4f1"]}
       style={styles.container}
     >
+      {/* Back Button */}
+      <Pressable
+        onPress={() => router.back()}
+        hitSlop={16}
+        style={[styles.backBtn, { top: insets.top + 8 }]}
+      >
+        <ArrowLeft size={22} color="#ffffff" />
+      </Pressable>
+
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={FadeInDown.delay(100)}>
-          <StepProgressBar currentStep={3} />
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)}>
+          <StepProgressBar
+              currentStep={currentStep}
+              totalSteps={stepConfig.totalSteps}
+              stepLabels={stepConfig.labels}
+            />
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(200)}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(200)}>
           <View style={styles.headerRow}>
             <Plane size={24} color="#ffffff" />
             <Text style={styles.title}>Default Aircraft</Text>
@@ -50,13 +69,13 @@ export default function AircraftScreen() {
         </Animated.View>
 
         {/* Aircraft Cards */}
-        <Animated.View entering={FadeInDown.delay(300)} style={styles.cards}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(300)} style={styles.cards}>
           {AIRCRAFT_DATABASE.map((ac, i) => {
             const isSelected = defaultAircraft === ac.id;
             return (
               <Animated.View
                 key={ac.id}
-                entering={FadeInDown.delay(350 + i * 100)}
+                entering={reducedMotion ? undefined : FadeInDown.delay(350 + i * 100)}
               >
                 <Pressable
                   onPress={() => {
@@ -115,7 +134,7 @@ export default function AircraftScreen() {
           {customAircraft.map((ac) => {
             const isSelected = defaultAircraft === ac.id;
             return (
-              <Animated.View key={ac.id} entering={FadeInDown}>
+              <Animated.View key={ac.id} entering={reducedMotion ? undefined : FadeInDown}>
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -166,7 +185,7 @@ export default function AircraftScreen() {
           })}
 
           {/* Add Custom Aircraft button */}
-          <Animated.View entering={FadeInDown.delay(550)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(550)}>
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -181,7 +200,7 @@ export default function AircraftScreen() {
         </Animated.View>
 
         <View style={styles.footer}>
-          <Animated.View entering={FadeInDown.delay(600)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(600)}>
             <Pressable
               onPress={handleNext}
               style={({ pressed }) => [
@@ -214,11 +233,22 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingHorizontal: 32,
-    paddingTop: 80,
+    paddingTop: 60,
     paddingBottom: 40,
     maxWidth: 500,
     width: "100%",
     alignSelf: "center",
+  },
+  backBtn: {
+    position: "absolute",
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
   },
   headerRow: {
     flexDirection: "row",

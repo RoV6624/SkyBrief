@@ -42,9 +42,10 @@ describe("calculatePivotalAltitude", () => {
     expect(pa).toBeLessThanOrEqual(1275);
   });
 
-  it("should handle zero ground speed", () => {
+  it("should clamp zero ground speed to minimum safe value", () => {
     const pa = calculatePivotalAltitude(0);
-    expect(pa).toBe(0);
+    // Minimum ground speed clamped to 10 kts for safety: 10² / 11.3 ≈ 9
+    expect(pa).toBe(Math.round((10 * 10) / 11.3));
   });
 
   it("should return integer values (rounded)", () => {

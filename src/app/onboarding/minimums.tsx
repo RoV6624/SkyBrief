@@ -2,12 +2,13 @@ import { useEffect } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, useReducedMotion } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ShieldCheck, ChevronRight, Zap } from "lucide-react-native";
+import { ShieldCheck, ChevronRight, Zap, ArrowLeft } from "lucide-react-native";
 import { useMonitorStore } from "@/stores/monitor-store";
 import { useUserStore } from "@/stores/user-store";
-import { StepProgressBar } from "@/components/onboarding/StepProgressBar";
+import { StepProgressBar, getOnboardingStepConfig } from "@/components/onboarding/StepProgressBar";
 import type { PersonalMinimums } from "@/lib/minimums/types";
 
 const PRESETS: Record<string, PersonalMinimums> = {
@@ -15,6 +16,7 @@ const PRESETS: Record<string, PersonalMinimums> = {
   private: { ceiling: 3000, visibility: 5, crosswind: 15, maxWind: 25, maxGust: 25 },
   commercial: { ceiling: 2000, visibility: 3, crosswind: 20, maxWind: 30, maxGust: 30 },
   atp: { ceiling: 1000, visibility: 2, crosswind: 25, maxWind: 35, maxGust: 35 },
+  instructor: { ceiling: 2000, visibility: 3, crosswind: 20, maxWind: 30, maxGust: 30 },
 };
 
 const LEVEL_LABELS: Record<string, string> = {
@@ -22,13 +24,18 @@ const LEVEL_LABELS: Record<string, string> = {
   private: "Private",
   commercial: "Commercial",
   atp: "ATP",
+  instructor: "Instructor",
 };
 
 export default function MinimumsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const { personalMinimums, setPersonalMinimum, setMinimumsEnabled } =
     useMonitorStore();
   const { experienceLevel } = useUserStore();
+  const stepConfig = getOnboardingStepConfig(experienceLevel);
+  const currentStep = experienceLevel === "student" ? 4 : experienceLevel === "instructor" ? 3 : 2;
 
   const applyPreset = (level: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -108,15 +115,28 @@ export default function MinimumsScreen() {
       colors={["#1e90ff", "#87ceeb", "#b0d4f1"]}
       style={styles.container}
     >
+      {/* Back Button */}
+      <Pressable
+        onPress={() => router.back()}
+        hitSlop={16}
+        style={[styles.backBtn, { top: insets.top + 8 }]}
+      >
+        <ArrowLeft size={22} color="#ffffff" />
+      </Pressable>
+
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={FadeInDown.delay(100)}>
-          <StepProgressBar currentStep={2} />
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)}>
+          <StepProgressBar
+              currentStep={currentStep}
+              totalSteps={stepConfig.totalSteps}
+              stepLabels={stepConfig.labels}
+            />
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(200)}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(200)}>
           <View style={styles.headerRow}>
             <ShieldCheck size={24} color="#ffffff" />
             <Text style={styles.title}>Personal Minimums</Text>
@@ -127,7 +147,7 @@ export default function MinimumsScreen() {
         </Animated.View>
 
         {/* Experience Preset Banner */}
-        <Animated.View entering={FadeInDown.delay(250)}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(250)}>
           <Pressable onPress={() => applyPreset(experienceLevel)} style={styles.presetBanner}>
             <Zap size={16} color="#f59e0b" />
             <Text style={styles.presetText}>
@@ -137,11 +157,11 @@ export default function MinimumsScreen() {
         </Animated.View>
 
         {/* Sliders */}
-        <Animated.View entering={FadeInDown.delay(300)} style={styles.sliders}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(300)} style={styles.sliders}>
           {sliders.map((s, i) => (
             <Animated.View
               key={s.key}
-              entering={FadeInDown.delay(350 + i * 80)}
+              entering={reducedMotion ? undefined : FadeInDown.delay(350 + i * 80)}
               style={styles.sliderCard}
             >
               <View style={styles.sliderHeader}>
@@ -187,7 +207,7 @@ export default function MinimumsScreen() {
         </Animated.View>
 
         <View style={styles.footer}>
-          <Animated.View entering={FadeInDown.delay(800)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(800)}>
             <Pressable
               onPress={handleNext}
               style={({ pressed }) => [
@@ -210,11 +230,22 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingHorizontal: 32,
-    paddingTop: 80,
+    paddingTop: 60,
     paddingBottom: 40,
     maxWidth: 500,
     width: "100%",
     alignSelf: "center",
+  },
+  backBtn: {
+    position: "absolute",
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
   },
   headerRow: {
     flexDirection: "row",

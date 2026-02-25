@@ -18,7 +18,8 @@ import { calculateWindComponents } from "./wind-calculations";
 export function calculatePivotalAltitude(groundSpeedKts: number): number {
   // Formula: PA = GS² / 11.3
   // Where 11.3 is the constant for knots and feet
-  return Math.round((groundSpeedKts * groundSpeedKts) / 11.3);
+  const safeGS = Math.max(groundSpeedKts, 10);
+  return Math.round((safeGS * safeGS) / 11.3);
 }
 
 /**

@@ -68,5 +68,21 @@ build-release/
 build-test/
 "ios 2/"
 
+# Cloud Functions build output
+functions/lib/
+
+# Local admin/seed scripts (contain credentials and hardcoded UIDs)
+scripts/
+
+# MCP config
+.mcp.json
+
+# Dev artifacts
+daily-briefing-preview.html
+.metadata_never_index
+
+# Simulator test artifacts
+simulator-tests/
+
 # Claude Code internal
 .claude/

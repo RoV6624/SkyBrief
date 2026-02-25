@@ -5,7 +5,7 @@
  * Auto-generate route or enter manually.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,9 +14,11 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, useReducedMotion } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import {
@@ -26,6 +28,7 @@ import {
   Trash2,
   ArrowRight,
   Wand2,
+  X,
 } from "lucide-react-native";
 
 import { DynamicSkyBackground } from "@/components/background/DynamicSkyBackground";
@@ -35,15 +38,29 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { colors } from "@/theme/tokens";
 import { generateWaypoints } from "@/lib/route/waypoint-generator";
 import { useContentWidth } from "@/hooks/useContentWidth";
+import { useXCWizardStore } from "@/stores/xc-wizard-store";
 
 export default function XCWizardRouteScreen() {
+  const reducedMotion = useReducedMotion();
   const { isDark } = useTheme();
   const router = useRouter();
   const scene = useSceneStore((s) => s.scene);
   const contentWidth = useContentWidth();
+  const xcStore = useXCWizardStore();
 
-  const [waypoints, setWaypoints] = useState(["", ""]);
+  const [waypoints, setWaypointsLocal] = useState(() => {
+    const stored = xcStore.waypoints;
+    return stored.length >= 2 && stored.some((w) => w.length > 0)
+      ? stored
+      : ["", ""];
+  });
   const [generating, setGenerating] = useState(false);
+
+  // Sync local state to persisted store
+  useEffect(() => {
+    xcStore.setWaypoints(waypoints);
+    xcStore.setCurrentStep(1);
+  }, [waypoints]);
 
   const textColor = isDark ? "#FFFFFF" : colors.stratus[900];
   const subColor = isDark ? colors.stratus[400] : colors.stratus[500];
@@ -52,20 +69,20 @@ export default function XCWizardRouteScreen() {
   const updateWaypoint = (index: number, value: string) => {
     const updated = [...waypoints];
     updated[index] = value.toUpperCase();
-    setWaypoints(updated);
+    setWaypointsLocal(updated);
   };
 
   const addWaypoint = () => {
     if (waypoints.length < 6) {
       Haptics.selectionAsync();
-      setWaypoints([...waypoints, ""]);
+      setWaypointsLocal([...waypoints, ""]);
     }
   };
 
   const removeWaypoint = (index: number) => {
     if (waypoints.length > 2) {
       Haptics.selectionAsync();
-      setWaypoints(waypoints.filter((_, i) => i !== index));
+      setWaypointsLocal(waypoints.filter((_, i) => i !== index));
     }
   };
 
@@ -88,7 +105,7 @@ export default function XCWizardRouteScreen() {
         corridorWidthNm: 30,
       });
       if (result.length > 0) {
-        setWaypoints(result.map((wp) => wp.identifier));
+        setWaypointsLocal(result.map((wp) => wp.identifier));
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch {
@@ -115,6 +132,10 @@ export default function XCWizardRouteScreen() {
     <View style={styles.container}>
       <DynamicSkyBackground scene={scene} />
       <SafeAreaView style={styles.safe} edges={["top"]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -123,8 +144,29 @@ export default function XCWizardRouteScreen() {
           ]}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Close Button */}
+          <View style={styles.closeRow}>
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                Alert.alert(
+                  "Exit Planning?",
+                  "Your route data will be saved as a draft.",
+                  [
+                    { text: "Keep Planning", style: "cancel" },
+                    { text: "Exit", style: "destructive", onPress: () => router.dismissAll() },
+                  ]
+                );
+              }}
+              hitSlop={12}
+              style={styles.closeBtn}
+            >
+              <X size={22} color="rgba(255,255,255,0.6)" />
+            </Pressable>
+          </View>
+
           {/* Step Indicator */}
-          <Animated.View entering={FadeInDown} style={styles.stepRow}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown} style={styles.stepRow}>
             <View style={[styles.stepDot, styles.stepActive]} />
             <View style={styles.stepLine} />
             <View style={styles.stepDot} />
@@ -135,7 +177,7 @@ export default function XCWizardRouteScreen() {
           </Animated.View>
 
           {/* Header */}
-          <Animated.View entering={FadeInDown.delay(50)} style={styles.header}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(50)} style={styles.header}>
             <Navigation size={22} color="#ffffff" strokeWidth={1.8} />
             <View>
               <Text style={styles.stepLabel}>STEP 1 OF 4</Text>
@@ -148,7 +190,7 @@ export default function XCWizardRouteScreen() {
           </Text>
 
           {/* Waypoint Inputs */}
-          <Animated.View entering={FadeInDown.delay(100)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)}>
             <CloudCard style={styles.card}>
               {waypoints.map((wp, idx) => (
                 <View key={idx} style={styles.wpRow}>
@@ -207,7 +249,7 @@ export default function XCWizardRouteScreen() {
           </Animated.View>
 
           {/* Auto Generate */}
-          <Animated.View entering={FadeInDown.delay(150)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(150)}>
             <Pressable
               onPress={handleAutoGenerate}
               disabled={generating}
@@ -221,7 +263,7 @@ export default function XCWizardRouteScreen() {
           </Animated.View>
 
           {/* Next Button */}
-          <Animated.View entering={FadeInDown.delay(200)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(200)}>
             <Pressable onPress={handleNext} style={styles.nextBtn}>
               <Text style={styles.nextText}>Next: Review Weather</Text>
               <ArrowRight size={18} color="#FFFFFF" />
@@ -230,6 +272,7 @@ export default function XCWizardRouteScreen() {
 
           <View style={{ height: 100 }} />
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
@@ -245,6 +288,19 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center" as const,
     gap: 16,
+  },
+  closeRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingTop: 12,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   stepRow: {
     flexDirection: "row",

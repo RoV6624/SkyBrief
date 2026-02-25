@@ -4,6 +4,7 @@ import { zustandMMKVStorage } from "@/services/storage";
 import { saveUserProfile, getUserProfile } from "@/services/firebase";
 import { useUserStore } from "./user-store";
 import { useMonitorStore } from "./monitor-store";
+import type { UserRole } from "@/lib/auth/roles";
 
 interface AuthUser {
   uid: string;
@@ -17,6 +18,7 @@ interface AuthStore {
   isAuthenticated: boolean;
   isLoading: boolean;
   isAdmin: boolean;
+  role: UserRole | null;
   onboardingComplete: boolean;
   completedOnboardingUsers: string[]; // Track UIDs of users who completed onboarding
   setUser: (user: AuthUser | null) => void;
@@ -33,6 +35,7 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       isLoading: true,
       isAdmin: false,
+      role: null,
       onboardingComplete: false,
       completedOnboardingUsers: [],
       setUser: async (user) => {
@@ -41,6 +44,8 @@ export const useAuthStore = create<AuthStore>()(
           user,
           isAuthenticated: !!user,
           isLoading: true, // Keep loading until profile check completes
+          role: null,      // Reset to prevent stale MMKV role from leaking
+          isAdmin: false,  // Reset admin flag for new user context
         });
 
         // If user is logging in, try to load their profile from Firestore
@@ -70,6 +75,17 @@ export const useAuthStore = create<AuthStore>()(
           try {
             const userStoreState = useUserStore.getState();
             const monitorState = useMonitorStore.getState();
+
+            // Derive role from experience level
+            const derivedRole: UserRole =
+              userStoreState.experienceLevel === "instructor"
+                ? "instructor"
+                : userStoreState.experienceLevel === "student"
+                  ? "student"
+                  : "pilot";
+
+            set({ role: derivedRole });
+
             await saveUserProfile({
               uid: user.uid,
               name: userStoreState.pilotName || user.displayName || "",
@@ -80,6 +96,9 @@ export const useAuthStore = create<AuthStore>()(
               onboardingComplete: true,
               minimumsEnabled: monitorState.minimumsEnabled,
               personalMinimums: monitorState.personalMinimums,
+              assignedInstructorUid: userStoreState.assignedInstructorUid ?? undefined,
+              assignedInstructorName: userStoreState.assignedInstructorName ?? undefined,
+              role: derivedRole,
             });
             console.log("[Auth] User profile saved to Firestore");
           } catch (error) {
@@ -102,6 +121,12 @@ export const useAuthStore = create<AuthStore>()(
             userStore.setHomeAirport(profile.homeAirport);
             userStore.setExperienceLevel(profile.experienceLevel);
             userStore.setDefaultAircraft(profile.defaultAircraft);
+            if (profile.assignedInstructorUid) {
+              userStore.setAssignedInstructor(
+                profile.assignedInstructorUid,
+                profile.assignedInstructorName ?? null
+              );
+            }
             userStore.markConfigured();
 
             // Restore minimums into monitor store
@@ -122,36 +147,47 @@ export const useAuthStore = create<AuthStore>()(
             set((state) => ({
               onboardingComplete: true,
               isAdmin: profile?.role === "admin",
+              role: (profile?.role as UserRole) ?? null,
               completedOnboardingUsers: state.completedOnboardingUsers.includes(uid)
                 ? state.completedOnboardingUsers
                 : [...state.completedOnboardingUsers, uid],
             }));
           } else {
             console.log("[Auth] No existing profile found or onboarding not complete");
-            set({ onboardingComplete: false, isAdmin: false });
+            set({ onboardingComplete: false, isAdmin: false, role: null });
           }
         } catch (error) {
           console.error("[Auth] Failed to load user profile:", error);
           // If Firestore is unavailable, fall back to local state
           const state = get();
           const hasCompletedOnboarding = state.completedOnboardingUsers.includes(uid);
-          set({ onboardingComplete: hasCompletedOnboarding });
+          set({ onboardingComplete: hasCompletedOnboarding, role: null, isAdmin: false });
         }
       },
-      signOut: () =>
+      signOut: () => {
+        // Clear user-specific stores to prevent data leakage between accounts
+        try {
+          useUserStore.getState().setProfile("", "");
+          useUserStore.getState().setHomeAirport("");
+          useMonitorStore.getState().setMinimumsEnabled(false);
+        } catch (e) {
+          // Swallow - stores may not be initialized
+        }
         set({
           user: null,
           isAuthenticated: false,
           isAdmin: false,
+          role: null,
           onboardingComplete: false,
           // Keep completedOnboardingUsers so users don't have to onboard again
-        }),
+        });
+      },
     }),
     {
       name: "skybrief-auth",
       storage: createJSONStorage(() => zustandMMKVStorage),
       partialize: (state) => ({
-        user: state.user,
+        user: state.user ? { uid: state.user.uid, email: null, displayName: null, photoURL: null } : null,
         isAuthenticated: state.isAuthenticated,
         onboardingComplete: state.onboardingComplete,
         completedOnboardingUsers: state.completedOnboardingUsers,

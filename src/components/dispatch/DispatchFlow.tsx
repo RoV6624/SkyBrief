@@ -1,15 +1,16 @@
 /**
  * Step-by-step dispatch wizard.
  *
- * Renders the DispatchStepIndicator at the top and below it shows
- * the content for the active step. Completed steps display a read-only
- * summary; the current step shows the interactive input component.
+ * Renders the DispatchStepIndicator at the top and below it a CloudCard
+ * showing only the current step as a single tappable row.
+ * When all steps are complete the card shows a "Review & Submit" prompt.
  */
 
 import React, { useMemo, useCallback } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, Alert, StyleSheet } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
 import {
   CheckCircle2,
   CloudSun,
@@ -17,6 +18,7 @@ import {
   Scale,
   ClipboardCheck,
   ChevronRight,
+  Rocket,
 } from "lucide-react-native";
 
 import { CloudCard } from "@/components/ui/CloudCard";
@@ -52,227 +54,16 @@ const STEP_ICONS: Record<keyof DispatchSteps, typeof CloudSun> = {
 };
 
 // ---------------------------------------------------------------------------
-// Sub-component: completed step summary row
-// ---------------------------------------------------------------------------
-
-function CompletedStepRow({
-  stepKey,
-  isDark,
-}: {
-  stepKey: keyof DispatchSteps;
-  isDark: boolean;
-}) {
-  const dispatch = useDispatchStore((s) => s.currentDispatch);
-  const Icon = STEP_ICONS[stepKey];
-
-  let detail = "";
-  if (dispatch) {
-    switch (stepKey) {
-      case "briefing":
-        if (dispatch.weatherSnapshot) {
-          detail = `${dispatch.weatherSnapshot.flightCategory} -- ${dispatch.station}`;
-        }
-        break;
-      case "frat":
-        if (dispatch.fratResult) {
-          detail = `Score ${dispatch.fratResult.totalScore} -- ${dispatch.fratResult.riskLevel.toUpperCase()}`;
-        }
-        break;
-      case "wb":
-        if (dispatch.wbSnapshot) {
-          detail = `${dispatch.wbSnapshot.totalWeight} lbs -- CG ${dispatch.wbSnapshot.cg.toFixed(1)} -- ${dispatch.wbSnapshot.withinLimits ? "Within Limits" : "OUT OF LIMITS"}`;
-        }
-        break;
-      case "checklist":
-        detail = "Complete";
-        break;
-    }
-  }
-
-  return (
-    <View style={completedStyles.row}>
-      <CheckCircle2 size={16} color={colors.alert.green} />
-      <Icon
-        size={14}
-        color={isDark ? "rgba(255,255,255,0.5)" : colors.stratus[600]}
-      />
-      <View style={completedStyles.textContainer}>
-        <Text
-          style={[
-            completedStyles.label,
-            { color: isDark ? "#FFFFFF" : colors.stratus[800] },
-          ]}
-        >
-          {DISPATCH_STEP_LABELS[stepKey]}
-        </Text>
-        {detail ? (
-          <Text
-            style={[
-              completedStyles.detail,
-              {
-                color: isDark
-                  ? "rgba(255,255,255,0.4)"
-                  : colors.stratus[500],
-              },
-            ]}
-          >
-            {detail}
-          </Text>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-const completedStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  textContainer: { flex: 1 },
-  label: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  detail: { fontSize: 11, fontFamily: "JetBrainsMono_400Regular", marginTop: 1 },
-});
-
-// ---------------------------------------------------------------------------
-// Sub-component: pending step placeholder
-// ---------------------------------------------------------------------------
-
-function PendingStepRow({
-  stepKey,
-  isCurrent,
-  isDark,
-  onPress,
-}: {
-  stepKey: keyof DispatchSteps;
-  isCurrent: boolean;
-  isDark: boolean;
-  onPress: () => void;
-}) {
-  const Icon = STEP_ICONS[stepKey];
-
-  if (!isCurrent) {
-    return (
-      <View style={pendingStyles.row}>
-        <View
-          style={[
-            pendingStyles.dotOutline,
-            {
-              borderColor: isDark
-                ? "rgba(255,255,255,0.15)"
-                : "rgba(0,0,0,0.12)",
-            },
-          ]}
-        />
-        <Icon
-          size={14}
-          color={
-            isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)"
-          }
-        />
-        <Text
-          style={[
-            pendingStyles.label,
-            {
-              color: isDark
-                ? "rgba(255,255,255,0.3)"
-                : "rgba(0,0,0,0.3)",
-            },
-          ]}
-        >
-          {DISPATCH_STEP_LABELS[stepKey]}
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <Pressable onPress={onPress}>
-      <View
-        style={[
-          pendingStyles.currentRow,
-          {
-            backgroundColor: isDark
-              ? "rgba(12,140,233,0.08)"
-              : "rgba(12,140,233,0.05)",
-            borderColor: isDark
-              ? "rgba(12,140,233,0.2)"
-              : "rgba(12,140,233,0.15)",
-          },
-        ]}
-      >
-        <Icon size={16} color={colors.stratus[500]} />
-        <View style={pendingStyles.currentTextContainer}>
-          <Text
-            style={[
-              pendingStyles.currentLabel,
-              { color: isDark ? "#FFFFFF" : colors.stratus[800] },
-            ]}
-          >
-            {DISPATCH_STEP_LABELS[stepKey]}
-          </Text>
-          <Text
-            style={[
-              pendingStyles.currentHint,
-              {
-                color: isDark
-                  ? "rgba(255,255,255,0.4)"
-                  : colors.stratus[500],
-              },
-            ]}
-          >
-            Tap to begin
-          </Text>
-        </View>
-        <ChevronRight
-          size={16}
-          color={isDark ? "rgba(255,255,255,0.3)" : colors.stratus[400]}
-        />
-      </View>
-    </Pressable>
-  );
-}
-
-const pendingStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  dotOutline: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1.5,
-  },
-  label: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  currentRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  currentTextContainer: { flex: 1 },
-  currentLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  currentHint: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
-});
-
-// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export function DispatchFlow({ station, metar, onComplete }: Props) {
   const { isDark } = useTheme();
+  const router = useRouter();
   const dispatch = useDispatchStore((s) => s.currentDispatch);
   const saveFrat = useDispatchStore((s) => s.saveFrat);
+  const completeStep = useDispatchStore((s) => s.completeStep);
+  const saveChecklist = useDispatchStore((s) => s.saveChecklist);
 
   const completedSteps = dispatch?.completedSteps ?? {
     briefing: false,
@@ -289,8 +80,12 @@ export function DispatchFlow({ station, metar, onComplete }: Props) {
     return undefined; // all done
   }, [completedSteps]);
 
-  // Check if all steps complete
   const allComplete = currentStep === undefined;
+
+  // Count completed for subtitle
+  const completedCount = DISPATCH_STEP_ORDER.filter(
+    (k) => completedSteps[k]
+  ).length;
 
   // FRAT completion handler
   const handleFratComplete = useCallback(
@@ -300,23 +95,56 @@ export function DispatchFlow({ station, metar, onComplete }: Props) {
     [saveFrat]
   );
 
-  // Placeholder press for non-FRAT steps
+  // Step tap handler — actually navigates / acts
   const handleStepPress = useCallback(
     (step: keyof DispatchSteps) => {
-      Haptics.selectionAsync();
-      // In the full app, this would navigate to the relevant screen.
-      // For now the briefing, W&B, and checklist steps are completed
-      // from their respective screens and feed data back to the dispatch store.
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      switch (step) {
+        case "briefing":
+          // The briefing is already on screen (weather data above).
+          // Mark complete since the student has reviewed it.
+          completeStep("briefing");
+          break;
+        case "frat":
+          // FRAT card renders inline below — no navigation needed.
+          // The card's onComplete callback calls saveFrat which marks it done.
+          break;
+        case "wb":
+          router.push("/(tabs)/wb");
+          break;
+        case "checklist":
+          Alert.alert(
+            "Preflight Complete?",
+            "Confirm you have completed the preflight checklist.",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Confirm",
+                onPress: () => {
+                  Haptics.notificationAsync(
+                    Haptics.NotificationFeedbackType.Success
+                  );
+                  saveChecklist();
+                },
+              },
+            ]
+          );
+          break;
+      }
     },
-    []
+    [completeStep, saveChecklist, router]
   );
+
+  // Resolve current step icon
+  const CurrentIcon = currentStep ? STEP_ICONS[currentStep] : null;
 
   return (
     <View style={styles.container}>
-      {/* Step indicator */}
+      {/* Step indicator circles */}
       <DispatchStepIndicator steps={completedSteps} currentStep={currentStep} />
 
-      {/* Steps list */}
+      {/* CloudCard — single current step or "all done" */}
       <Animated.View entering={FadeInDown.delay(100)}>
         <CloudCard>
           <Text
@@ -328,55 +156,104 @@ export function DispatchFlow({ station, metar, onComplete }: Props) {
             Dispatch Checklist
           </Text>
 
-          <View style={styles.stepsListContainer}>
-            {DISPATCH_STEP_ORDER.map((key) => {
-              if (completedSteps[key]) {
-                return (
-                  <CompletedStepRow key={key} stepKey={key} isDark={isDark} />
+          {currentStep && CurrentIcon ? (
+            <Pressable
+              onPress={() => handleStepPress(currentStep)}
+              style={({ pressed }) => [
+                styles.currentStepRow,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(12,140,233,0.08)"
+                    : "rgba(12,140,233,0.05)",
+                  borderColor: isDark
+                    ? "rgba(12,140,233,0.2)"
+                    : "rgba(12,140,233,0.15)",
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Continue to ${DISPATCH_STEP_LABELS[currentStep]}`}
+            >
+              <CurrentIcon size={18} color={colors.stratus[500]} />
+              <View style={styles.currentStepText}>
+                <Text
+                  style={[
+                    styles.currentStepLabel,
+                    { color: isDark ? "#FFFFFF" : colors.stratus[800] },
+                  ]}
+                >
+                  {DISPATCH_STEP_LABELS[currentStep]}
+                </Text>
+                <Text
+                  style={[
+                    styles.currentStepHint,
+                    {
+                      color: isDark
+                        ? "rgba(255,255,255,0.4)"
+                        : colors.stratus[500],
+                    },
+                  ]}
+                >
+                  Step {completedCount + 1} of {DISPATCH_STEP_ORDER.length} — Tap to continue
+                </Text>
+              </View>
+              <ChevronRight
+                size={16}
+                color={isDark ? "rgba(255,255,255,0.3)" : colors.stratus[400]}
+              />
+            </Pressable>
+          ) : allComplete ? (
+            <Pressable
+              onPress={() => {
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success
                 );
-              }
-              return (
-                <PendingStepRow
-                  key={key}
-                  stepKey={key}
-                  isCurrent={key === currentStep}
-                  isDark={isDark}
-                  onPress={() => handleStepPress(key)}
-                />
-              );
-            })}
-          </View>
+                onComplete?.();
+              }}
+              style={({ pressed }) => [
+                styles.allDoneRow,
+                {
+                  backgroundColor: `rgba(34,197,94,${pressed ? 0.15 : 0.1})`,
+                  borderColor: "rgba(34,197,94,0.25)",
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Review and submit dispatch"
+            >
+              <Rocket size={18} color={colors.alert.green} />
+              <View style={styles.currentStepText}>
+                <Text
+                  style={[
+                    styles.currentStepLabel,
+                    { color: colors.alert.green },
+                  ]}
+                >
+                  Review & Submit Dispatch
+                </Text>
+                <Text
+                  style={[
+                    styles.currentStepHint,
+                    {
+                      color: isDark
+                        ? "rgba(255,255,255,0.4)"
+                        : colors.stratus[500],
+                    },
+                  ]}
+                >
+                  All steps complete
+                </Text>
+              </View>
+              <ChevronRight size={16} color={colors.alert.green} />
+            </Pressable>
+          ) : null}
         </CloudCard>
       </Animated.View>
 
-      {/* Active step content */}
+      {/* Inline FRAT card when that step is active */}
       {currentStep === "frat" && (
         <View style={styles.activeStepContent}>
           <StationFRATCard metar={metar} onComplete={handleFratComplete} />
         </View>
-      )}
-
-      {/* All done: show proceed button */}
-      {allComplete && (
-        <Animated.View entering={FadeInDown.delay(200)}>
-          <Pressable
-            onPress={() => {
-              Haptics.notificationAsync(
-                Haptics.NotificationFeedbackType.Success
-              );
-              onComplete?.();
-            }}
-            style={({ pressed }) => [
-              styles.proceedBtn,
-              {
-                backgroundColor: colors.alert.green,
-                opacity: pressed ? 0.8 : 1,
-              },
-            ]}
-          >
-            <Text style={styles.proceedBtnText}>Review & Submit Dispatch</Text>
-          </Pressable>
-        </Animated.View>
       )}
     </View>
   );
@@ -393,17 +270,33 @@ const styles = StyleSheet.create({
     fontFamily: "SpaceGrotesk_600SemiBold",
     marginBottom: 8,
   },
-  stepsListContainer: { gap: 2 },
-  activeStepContent: { marginTop: 4 },
-  proceedBtn: {
-    borderRadius: 12,
-    paddingVertical: 16,
+  currentStepRow: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
   },
-  proceedBtnText: {
-    fontSize: 15,
+  currentStepText: { flex: 1 },
+  currentStepLabel: {
+    fontSize: 14,
     fontFamily: "Inter_600SemiBold",
-    color: "#FFFFFF",
   },
+  currentStepHint: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+  },
+  allDoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  activeStepContent: { marginTop: 4 },
 });

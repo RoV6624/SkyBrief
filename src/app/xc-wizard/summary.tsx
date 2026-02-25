@@ -16,7 +16,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, useReducedMotion } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
@@ -26,6 +26,7 @@ import {
   ArrowLeft,
   Home,
   AlertTriangle,
+  X,
 } from "lucide-react-native";
 
 import { DynamicSkyBackground } from "@/components/background/DynamicSkyBackground";
@@ -39,17 +40,24 @@ import { useWBStore } from "@/stores/wb-store";
 import { calcTotalWB } from "@/lib/wb/calculations";
 import { useUserStore } from "@/stores/user-store";
 import { useContentWidth } from "@/hooks/useContentWidth";
+import { useXCWizardStore } from "@/stores/xc-wizard-store";
 import type { FlightCategory } from "@/lib/api/types";
 
 export default function XCWizardSummaryScreen() {
+  const reducedMotion = useReducedMotion();
   const { isDark } = useTheme();
   const router = useRouter();
   const { waypoints: wpParam } = useLocalSearchParams<{ waypoints: string }>();
   const scene = useSceneStore((s) => s.scene);
   const contentWidth = useContentWidth();
   const { pilotName } = useUserStore();
+  const xcStore = useXCWizardStore();
 
-  const waypoints = useMemo(() => (wpParam ?? "").split(",").filter(Boolean), [wpParam]);
+  const waypoints = useMemo(() => {
+    const fromStore = xcStore.waypoints.filter((w) => w.trim().length >= 3);
+    if (fromStore.length >= 2) return fromStore;
+    return (wpParam ?? "").split(",").filter(Boolean);
+  }, [wpParam, xcStore.waypoints]);
   const { data: briefing } = useRouteBriefing(waypoints);
   const { aircraft, stationWeights, fuelGallons, fuelUnit, customEmptyWeight, customEmptyArm } = useWBStore();
 
@@ -142,6 +150,7 @@ export default function XCWizardSummaryScreen() {
 
   const handleDone = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    xcStore.reset();
     router.dismissAll();
   };
 
@@ -166,8 +175,19 @@ export default function XCWizardSummaryScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
+          {/* Close Button */}
+          <View style={styles.closeRow}>
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); router.dismissAll(); }}
+              hitSlop={12}
+              style={styles.closeBtn}
+            >
+              <X size={22} color="rgba(255,255,255,0.6)" />
+            </Pressable>
+          </View>
+
           {/* Step Indicator - All Done */}
-          <Animated.View entering={FadeInDown} style={styles.stepRow}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown} style={styles.stepRow}>
             <View style={[styles.stepDot, styles.stepDone]} />
             <View style={[styles.stepLine, styles.stepLineDone]} />
             <View style={[styles.stepDot, styles.stepDone]} />
@@ -177,7 +197,7 @@ export default function XCWizardSummaryScreen() {
             <View style={[styles.stepDot, styles.stepActive]} />
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(50)} style={styles.header}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(50)} style={styles.header}>
             <FileText size={22} color="#ffffff" strokeWidth={1.8} />
             <View>
               <Text style={styles.stepLabel}>STEP 4 OF 4</Text>
@@ -186,7 +206,7 @@ export default function XCWizardSummaryScreen() {
           </Animated.View>
 
           {/* Route Overview */}
-          <Animated.View entering={FadeInDown.delay(100)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)}>
             <CloudCard style={styles.card}>
               <Text style={[styles.routeTitle, { color: textColor }]}>
                 {waypoints[0]} → {waypoints[waypoints.length - 1]}
@@ -233,7 +253,7 @@ export default function XCWizardSummaryScreen() {
           </Animated.View>
 
           {/* Checklist Status */}
-          <Animated.View entering={FadeInDown.delay(150)}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(150)}>
             <CloudCard style={styles.card}>
               <Text style={[styles.checkHeader, { color: textColor }]}>
                 Pre-Flight Checklist
@@ -269,7 +289,7 @@ export default function XCWizardSummaryScreen() {
           </Animated.View>
 
           {/* Actions */}
-          <Animated.View entering={FadeInDown.delay(200)} style={styles.actions}>
+          <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(200)} style={styles.actions}>
             <Pressable onPress={handleShare} style={styles.shareBtn}>
               <Share2 size={18} color="#FFFFFF" />
               <Text style={styles.shareBtnText}>Share Briefing</Text>
@@ -312,6 +332,19 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center" as const,
     gap: 12,
+  },
+  closeRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingTop: 12,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   stepRow: {
     flexDirection: "row",

@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   catBadgeText: {
-    fontSize: 8,
+    fontSize: 11,
     fontFamily: "JetBrainsMono_700Bold",
     color: "#FFFFFF",
     letterSpacing: 0.5,

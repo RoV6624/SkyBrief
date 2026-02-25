@@ -7,11 +7,11 @@ import {
   Navigation,
   Scale,
   BookOpen,
+  GraduationCap,
   Map,
   Settings,
 } from "lucide-react-native";
 import { useTheme } from "@/theme/ThemeProvider";
-import { colors } from "@/theme/tokens";
 
 export default function TabLayout() {
   const { theme, isDark } = useTheme();
@@ -80,9 +80,19 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="lessons"
+        options={{
+          title: "Lessons",
+          tabBarIcon: ({ color, size }) => (
+            <GraduationCap size={size} color={color} strokeWidth={1.8} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="logbook"
         options={{
           title: "Logbook",
+          href: null,
           tabBarIcon: ({ color, size }) => (
             <BookOpen size={size} color={color} strokeWidth={1.8} />
           ),

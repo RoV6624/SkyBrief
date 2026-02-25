@@ -200,6 +200,19 @@ export async function changePassword(
   await currentUser.updatePassword(newPassword);
 }
 
+/**
+ * Returns the current user's Firebase ID token, or null if not authenticated.
+ */
+export async function getCurrentIdToken(): Promise<string | null> {
+  try {
+    const user = safeCurrentUser();
+    if (!user) return null;
+    return await user.getIdToken();
+  } catch {
+    return null;
+  }
+}
+
 export { statusCodes };
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -230,16 +243,18 @@ export interface UserProfile {
   name: string;
   email: string;
   homeAirport: string;
-  experienceLevel: "student" | "private" | "commercial" | "atp";
+  experienceLevel: "student" | "private" | "commercial" | "atp" | "instructor";
   defaultAircraft: string;
   onboardingComplete: boolean;
   minimumsEnabled?: boolean;
   personalMinimums?: PersonalMinimums;
-  role?: "user" | "admin";
+  role?: import("@/lib/auth/roles").UserRole;
   lastActiveAt?: Date;
   timezone?: string;
   dailyBriefingEnabled?: boolean;
   pushToken?: string;
+  assignedInstructorUid?: string;
+  assignedInstructorName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -261,12 +276,18 @@ export function firestoreValueToJS(value: any): any {
   if (value.doubleValue !== undefined) return value.doubleValue;
   if (value.booleanValue !== undefined) return value.booleanValue;
   if (value.timestampValue !== undefined) return new Date(value.timestampValue);
+  if (value.arrayValue !== undefined) {
+    return (value.arrayValue.values ?? []).map(firestoreValueToJS);
+  }
   if (value.nullValue !== undefined) return null;
   return null;
 }
 
 export function jsToFirestoreValue(value: any): any {
   if (value === null) return { nullValue: null };
+  if (Array.isArray(value)) {
+    return { arrayValue: { values: value.map(jsToFirestoreValue) } };
+  }
   if (typeof value === "string") return { stringValue: value };
   if (typeof value === "number") {
     if (Number.isInteger(value)) return { integerValue: value.toString() };
@@ -767,6 +788,8 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
       lastActiveAt: fields.lastActiveAt
         ? firestoreValueToJS(fields.lastActiveAt)
         : undefined,
+      assignedInstructorUid: firestoreValueToJS(fields.assignedInstructorUid) || undefined,
+      assignedInstructorName: firestoreValueToJS(fields.assignedInstructorName) || undefined,
       createdAt: firestoreValueToJS(fields.createdAt) || new Date(),
       updatedAt: firestoreValueToJS(fields.updatedAt) || new Date(),
     };
@@ -819,8 +842,12 @@ export async function saveUserProfile(profile: Partial<UserProfile> & { uid: str
               minimums_maxGust: jsToFirestoreValue(mins.maxGust),
             }
           : {}),
-        // Preserve role — never overwrite from client
-        ...(existing?.role ? { role: jsToFirestoreValue(existing.role) } : {}),
+        // Write role if explicitly provided, otherwise preserve existing
+        ...(profile.role
+          ? { role: jsToFirestoreValue(profile.role) }
+          : existing?.role
+            ? { role: jsToFirestoreValue(existing.role) }
+            : {}),
         ...(profile.timezone || existing?.timezone
           ? { timezone: jsToFirestoreValue(profile.timezone ?? existing?.timezone ?? "") }
           : {}),
@@ -829,6 +856,12 @@ export async function saveUserProfile(profile: Partial<UserProfile> & { uid: str
           : {}),
         ...(profile.pushToken || existing?.pushToken
           ? { pushToken: jsToFirestoreValue(profile.pushToken ?? existing?.pushToken ?? "") }
+          : {}),
+        ...(profile.assignedInstructorUid || existing?.assignedInstructorUid
+          ? { assignedInstructorUid: jsToFirestoreValue(profile.assignedInstructorUid ?? existing?.assignedInstructorUid ?? "") }
+          : {}),
+        ...(profile.assignedInstructorName || existing?.assignedInstructorName
+          ? { assignedInstructorName: jsToFirestoreValue(profile.assignedInstructorName ?? existing?.assignedInstructorName ?? "") }
           : {}),
         createdAt: jsToFirestoreValue(existing?.createdAt ?? now),
         updatedAt: jsToFirestoreValue(now),

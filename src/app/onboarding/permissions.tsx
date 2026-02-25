@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
+import { useRouter } from "expo-router";
+import Animated, { FadeInDown, FadeIn, useReducedMotion } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
@@ -10,16 +12,24 @@ import {
   Bell,
   Check,
   CheckCircle,
+  ArrowLeft,
 } from "lucide-react-native";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMonitorStore } from "@/stores/monitor-store";
-import { StepProgressBar } from "@/components/onboarding/StepProgressBar";
+import { useUserStore } from "@/stores/user-store";
+import { StepProgressBar, getOnboardingStepConfig } from "@/components/onboarding/StepProgressBar";
 import { registerPushToken } from "@/services/push-token";
 import { saveUserProfile } from "@/services/firebase";
 
 export default function PermissionsScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const { completeOnboarding } = useAuthStore();
   const { setMinimumsEnabled } = useMonitorStore();
+  const { experienceLevel, markConfigured } = useUserStore();
+  const stepConfig = getOnboardingStepConfig(experienceLevel);
+  const currentStep = stepConfig.totalSteps; // Always the last step
   const [locationGranted, setLocationGranted] = useState(false);
   const [notifGranted, setNotifGranted] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -63,6 +73,7 @@ export default function PermissionsScreen() {
   const handleComplete = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setMinimumsEnabled(true);
+    markConfigured();
     // Capture timezone for daily email briefing
     try {
       const uid = useAuthStore.getState().user?.uid;
@@ -84,18 +95,18 @@ export default function PermissionsScreen() {
         style={styles.container}
       >
         <View style={styles.successOverlay}>
-          <Animated.View entering={FadeIn.duration(300)} style={styles.successContent}>
+          <Animated.View entering={reducedMotion ? undefined : FadeIn.duration(300)} style={styles.successContent}>
             <View style={styles.successCircle}>
               <CheckCircle size={48} color="#22c55e" />
             </View>
             <Animated.Text
-              entering={FadeInDown.delay(200)}
+              entering={reducedMotion ? undefined : FadeInDown.delay(200)}
               style={styles.successTitle}
             >
               You're all set!
             </Animated.Text>
             <Animated.Text
-              entering={FadeInDown.delay(350)}
+              entering={reducedMotion ? undefined : FadeInDown.delay(350)}
               style={styles.successSubtitle}
             >
               Preparing your first briefing...
@@ -111,12 +122,25 @@ export default function PermissionsScreen() {
       colors={["#1e90ff", "#87ceeb", "#b0d4f1"]}
       style={styles.container}
     >
+      {/* Back Button */}
+      <Pressable
+        onPress={() => router.back()}
+        hitSlop={16}
+        style={[styles.backBtn, { top: insets.top + 8 }]}
+      >
+        <ArrowLeft size={22} color="#ffffff" />
+      </Pressable>
+
       <View style={styles.scroll}>
-        <Animated.View entering={FadeInDown.delay(100)}>
-          <StepProgressBar currentStep={4} />
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)}>
+          <StepProgressBar
+              currentStep={currentStep}
+              totalSteps={stepConfig.totalSteps}
+              stepLabels={stepConfig.labels}
+            />
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(200)}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(200)}>
           <Text style={styles.title}>Permissions</Text>
           <Text style={styles.subtitle}>
             These help us deliver the best briefing experience
@@ -124,7 +148,7 @@ export default function PermissionsScreen() {
         </Animated.View>
 
         {/* Location */}
-        <Animated.View entering={FadeInDown.delay(300)}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(300)}>
           <Pressable
             onPress={handleLocationPermission}
             disabled={locationGranted}
@@ -156,7 +180,7 @@ export default function PermissionsScreen() {
         </Animated.View>
 
         {/* Notifications */}
-        <Animated.View entering={FadeInDown.delay(400)}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(400)}>
           <Pressable
             onPress={handleNotificationPermission}
             disabled={notifGranted}
@@ -187,7 +211,7 @@ export default function PermissionsScreen() {
         </Animated.View>
 
         {/* Complete */}
-        <Animated.View entering={FadeInDown.delay(500)} style={styles.footer}>
+        <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(500)} style={styles.footer}>
           <Pressable
             onPress={handleComplete}
             style={({ pressed }) => [
@@ -212,11 +236,22 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
     paddingHorizontal: 32,
-    paddingTop: 80,
+    paddingTop: 60,
     paddingBottom: 40,
     maxWidth: 500,
     width: "100%",
     alignSelf: "center",
+  },
+  backBtn: {
+    position: "absolute",
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
   },
   title: {
     fontSize: 28,

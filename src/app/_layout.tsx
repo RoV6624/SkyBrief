@@ -49,6 +49,7 @@ function RootNavigator() {
   const { isAuthenticated, onboardingComplete, isLoading, setUser, setLoading } =
     useAuthStore();
   const hasHandledResetRef = useRef(false);
+  const lastNavTargetRef = useRef<string | null>(null);
   const router = useRouter();
   const segments = useSegments();
 
@@ -97,22 +98,23 @@ function RootNavigator() {
 
   // Force navigation when auth state changes
   useEffect(() => {
-    // Don't navigate while loading profile - prevents flash of onboarding screen
     if (isLoading) {
-      console.log("[Auth] Loading profile, delaying navigation...");
+      lastNavTargetRef.current = null;
       return;
     }
 
-    // Check if we're on the right route - if not, navigate
+    let target: string | null = null;
     if (!isAuthenticated && segments[0] !== "auth") {
-      console.log("[Auth] Navigating to auth screen");
-      router.push("/auth" as any); // Type assertion for Expo Router compatibility
+      target = "/auth";
     } else if (isAuthenticated && !onboardingComplete && segments[0] !== "onboarding") {
-      console.log("[Auth] Navigating to onboarding screen");
-      router.push("/onboarding" as any); // Type assertion for Expo Router compatibility
+      target = "/onboarding";
     } else if (isAuthenticated && onboardingComplete && segments[0] !== "(tabs)" && segments[0] !== "admin" && segments[0] !== "xc-wizard" && segments[0] !== "instructor") {
-      console.log("[Auth] Navigating to main app");
-      router.push("/(tabs)" as any); // Type assertion for Expo Router compatibility
+      target = "/(tabs)";
+    }
+
+    if (target && target !== lastNavTargetRef.current) {
+      lastNavTargetRef.current = target;
+      router.push(target as any);
     }
   }, [isAuthenticated, onboardingComplete, isLoading, router, segments]);
 

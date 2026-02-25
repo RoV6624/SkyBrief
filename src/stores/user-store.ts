@@ -2,7 +2,7 @@ import { createPersistedStore } from "./middleware";
 import type { CustomAircraftProfile } from "@/lib/wb/aircraft-types";
 import { resolveAirportIdentifier } from "@/services/airport-data";
 
-type ExperienceLevel = "student" | "private" | "commercial" | "atp";
+type ExperienceLevel = "student" | "private" | "commercial" | "atp" | "instructor";
 
 interface UserStore {
   pilotName: string;
@@ -11,10 +11,13 @@ interface UserStore {
   experienceLevel: ExperienceLevel;
   profileConfigured: boolean;
   defaultAircraft: string | null;
+  assignedInstructorUid: string | null;
+  assignedInstructorName: string | null;
   setProfile: (name: string, email: string) => void;
   setHomeAirport: (icao: string) => void;
   setExperienceLevel: (level: ExperienceLevel) => void;
   setDefaultAircraft: (aircraft: string | null) => void;
+  setAssignedInstructor: (uid: string | null, name: string | null) => void;
   markConfigured: () => void;
   migrateHomeAirport: () => void;
   customAircraft: CustomAircraftProfile[];
@@ -34,6 +37,8 @@ export const useUserStore = createPersistedStore<UserStore>(
       experienceLevel: "private",
       profileConfigured: false,
       defaultAircraft: null,
+      assignedInstructorUid: null,
+      assignedInstructorName: null,
       setProfile: (pilotName, email) => set({ pilotName, email }),
       setHomeAirport: (icao) => {
         const resolved = resolveAirportIdentifier(icao) || icao.toUpperCase();
@@ -41,6 +46,8 @@ export const useUserStore = createPersistedStore<UserStore>(
       },
       setExperienceLevel: (level) => set({ experienceLevel: level }),
       setDefaultAircraft: (aircraft) => set({ defaultAircraft: aircraft }),
+      setAssignedInstructor: (uid, name) =>
+        set({ assignedInstructorUid: uid, assignedInstructorName: name }),
       markConfigured: () => set({ profileConfigured: true }),
       migrateHomeAirport: () => {
         const current = get().homeAirport;

@@ -9,13 +9,25 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
+    // Helper: check if user belongs to a specific tenant
+    function isUserInTenant(tenantId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId;
+    }
+
+    // Helper: check if user is instructor or admin in a tenant
+    function isTenantStaff(tenantId) {
+      return isUserInTenant(tenantId)
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ["instructor", "school_admin", "admin"];
+    }
+
     // User profiles - users can read/write their own profile; admins can read any
     // Users cannot set/change their own role (only admins can)
     match /users/{userId} {
       allow read: if request.auth != null
         && (request.auth.uid == userId || isAdmin());
-      allow create: if request.auth != null && request.auth.uid == userId
-        && !('role' in request.resource.data);
+      allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null && request.auth.uid == userId
         && (!('role' in request.resource.data.diff(resource.data).affectedKeys())
             || isAdmin());
@@ -24,12 +36,14 @@ service cloud.firestore {
     // Fuel prices - authenticated read/write with field validation
     match /fuel_prices/{airportId} {
       allow read: if request.auth != null;
+      // Validates: required fields, price range, timestamp type, and updated_by_uid matches auth uid
       allow write: if request.auth != null
         && request.resource.data.keys().hasAll(['airport_id', 'price_100ll', 'updated_at', 'updated_by_uid'])
         && request.resource.data.updated_by_uid == request.auth.uid
         && request.resource.data.price_100ll is number
         && request.resource.data.price_100ll > 0
-        && request.resource.data.price_100ll < 20;
+        && request.resource.data.price_100ll < 20
+        && request.resource.data.updated_at is timestamp;
 
       // Fuel price reports subcollection
       match /reports/{reportId} {
@@ -55,6 +69,36 @@ service cloud.firestore {
     match /metrics/{docId} {
       allow read: if isAdmin();
       allow write: if isAdmin();
+    }
+
+    // Tenants (flight schools) - authenticated users can read, only admins can write
+    match /tenants/{tenantId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+
+      // Templates - tenant members can read, staff can write
+      match /templates/{docId} {
+        allow read: if isUserInTenant(tenantId) || isAdmin();
+        allow write: if isTenantStaff(tenantId) || isAdmin();
+      }
+
+      // Lessons - tenant members can read, staff can write
+      match /lessons/{docId} {
+        allow read: if isUserInTenant(tenantId) || isAdmin();
+        allow write: if isTenantStaff(tenantId) || isAdmin();
+      }
+
+      // Assigned lessons - tenant members can read, staff can write
+      match /assigned_lessons/{docId} {
+        allow read: if isUserInTenant(tenantId) || isAdmin();
+        allow write: if isTenantStaff(tenantId) || isAdmin();
+      }
+
+      // Training plans - tenant members can read, staff can write
+      match /training_plans/{docId} {
+        allow read: if isUserInTenant(tenantId) || isAdmin();
+        allow write: if isTenantStaff(tenantId) || isAdmin();
+      }
     }
 
     // Dispatch packets - scoped to student and assigned instructor

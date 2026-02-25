@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
+import { useState, useMemo } from "react";
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Scale, Fuel, ArrowRightLeft, Save, Trash2, Plus } from "lucide-react-native";
 import { useWBStore } from "@/stores/wb-store";
@@ -46,297 +46,37 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
   const [showSaveInput, setShowSaveInput] = useState(false);
   const [showCustomModal, setShowCustomModal] = useState(false);
 
+  const aircraftGroups = useMemo(() => {
+    const groups: { label: string; items: { ac: (typeof AIRCRAFT_DATABASE)[0]; shortName: string }[] }[] = [];
+    const groupMap: Record<string, (typeof groups)[0]> = {};
+    for (const ac of AIRCRAFT_DATABASE) {
+      let label: string;
+      let shortName: string;
+      if (ac.name.startsWith("Cessna ")) { label = "CESSNA"; shortName = ac.name.replace("Cessna ", ""); }
+      else if (ac.name.startsWith("Piper ")) { label = "PIPER"; shortName = ac.name.replace("Piper ", ""); }
+      else { label = "OTHER"; shortName = ac.name.replace(/^(Diamond|Cirrus|Beechcraft) /, ""); }
+      if (!groupMap[label]) { groupMap[label] = { label, items: [] }; groups.push(groupMap[label]); }
+      groupMap[label].items.push({ ac, shortName });
+    }
+    return groups;
+  }, []);
+
   const effectiveEmptyWeight = customEmptyWeight ?? aircraft.emptyWeight;
   const effectiveEmptyArm = customEmptyArm ?? aircraft.emptyArm;
   const effectiveEmptyMoment = effectiveEmptyWeight * effectiveEmptyArm;
 
-  // Dynamic styles based on theme
-  const styles = StyleSheet.create({
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      marginBottom: 14,
-    },
-    headerText: {
-      fontSize: 11,
-      fontFamily: "SpaceGrotesk_600SemiBold",
-      color: isDark ? theme.foreground : colors.stratus[700],
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-    },
-    field: { marginBottom: 12 },
-    label: {
-      fontSize: 10,
-      fontFamily: "Inter_600SemiBold",
-      color: isDark ? "rgba(255,255,255,0.7)" : colors.stratus[600],
-      marginBottom: 6,
-    },
-    acRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-    acChip: {
-      backgroundColor: "rgba(12,140,233,0.06)",
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderWidth: 1,
-      borderColor: "rgba(12,140,233,0.1)",
-    },
-    acChipActive: {
-      backgroundColor: "rgba(12,140,233,0.12)",
-      borderColor: colors.stratus[500],
-    },
-    acChipText: {
-      fontSize: 12,
-      fontFamily: "Inter_500Medium",
-      color: isDark ? "rgba(255,255,255,0.7)" : colors.stratus[600],
-    },
-    acChipTextActive: {
-      color: isDark ? theme.foreground : colors.stratus[800],
-      fontFamily: "Inter_700Bold",
-    },
-    acChipCustom: {
-      borderColor: "rgba(34,197,94,0.25)",
-      backgroundColor: "rgba(34,197,94,0.06)",
-    },
-    acAddBtn: {
-      width: 34,
-      height: 34,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: "rgba(12,140,233,0.15)",
-      borderStyle: "dashed",
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "rgba(12,140,233,0.04)",
-    },
-    savedSection: {
-      marginBottom: 12,
-      paddingTop: 8,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: "rgba(12,140,233,0.1)",
-    },
-    savedLabel: {
-      fontSize: 10,
-      fontFamily: "Inter_600SemiBold",
-      color: isDark ? "rgba(255,255,255,0.7)" : colors.stratus[600],
-      marginBottom: 6,
-    },
-    savedRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      marginBottom: 4,
-    },
-    savedChip: {
-      flex: 1,
-      backgroundColor: "rgba(34,197,94,0.08)",
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderWidth: 1,
-      borderColor: "rgba(34,197,94,0.2)",
-    },
-    savedChipText: {
-      fontSize: 11,
-      fontFamily: "Inter_500Medium",
-      color: isDark ? "rgba(255,255,255,0.8)" : colors.stratus[700],
-    },
-    tableHeader: {
-      flexDirection: "row",
-      borderBottomWidth: 1,
-      borderBottomColor: "rgba(12,140,233,0.12)",
-      paddingBottom: 6,
-      marginBottom: 4,
-    },
-    th: {
-      fontSize: 10,
-      fontFamily: "SpaceGrotesk_600SemiBold",
-      color: isDark ? "rgba(255,255,255,0.6)" : colors.stratus[600],
-      textTransform: "uppercase",
-      textAlign: "right",
-    },
-    tableRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 4,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: "rgba(12,140,233,0.06)",
-    },
-    td: {
-      fontSize: 12,
-      fontFamily: "Inter_400Regular",
-      color: isDark ? "rgba(255,255,255,0.8)" : colors.stratus[700],
-    },
-    tdMono: {
-      fontSize: 12,
-      fontFamily: "JetBrainsMono_600SemiBold",
-      color: isDark ? theme.foreground : colors.stratus[800],
-      textAlign: "right",
-    },
-    tdDim: {
-      fontSize: 11,
-      fontFamily: "JetBrainsMono_400Regular",
-      color: isDark ? "rgba(255,255,255,0.5)" : colors.stratus[500],
-      textAlign: "right",
-    },
-    input: {
-      fontSize: 12,
-      fontFamily: "JetBrainsMono_600SemiBold",
-      color: isDark ? theme.foreground : colors.stratus[800],
-      backgroundColor: "rgba(12,140,233,0.04)",
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: "rgba(12,140,233,0.08)",
-      paddingHorizontal: 8,
-      paddingVertical: 6,
-      textAlign: "right",
-    },
-    fuelLabel: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-    },
-    unitToggle: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 2,
-      backgroundColor: "rgba(12,140,233,0.08)",
-      borderRadius: 6,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      marginLeft: 4,
-    },
-    unitText: {
-      fontSize: 10,
-      fontFamily: "SpaceGrotesk_600SemiBold",
-      color: isDark ? "rgba(255,255,255,0.7)" : colors.stratus[600],
-    },
-    totalRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 8,
-      borderTopWidth: 2,
-      borderTopColor: "rgba(12,140,233,0.2)",
-      marginTop: 6,
-    },
-    totalLabel: {
-      fontSize: 13,
-      fontFamily: "Inter_700Bold",
-      color: isDark ? theme.foreground : colors.stratus[900],
-    },
-    totalValue: {
-      fontSize: 13,
-      fontFamily: "JetBrainsMono_700Bold",
-      color: isDark ? theme.foreground : colors.stratus[900],
-      textAlign: "right",
-    },
-    totalValueDim: {
-      fontSize: 12,
-      fontFamily: "JetBrainsMono_600SemiBold",
-      color: isDark ? "rgba(255,255,255,0.8)" : colors.stratus[700],
-      textAlign: "right",
-    },
-    zfwRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 4,
-    },
-    zfwLabel: {
-      fontSize: 11,
-      fontFamily: "Inter_500Medium",
-      color: isDark ? "rgba(255,255,255,0.5)" : colors.stratus[500],
-    },
-    zfwValue: {
-      fontSize: 11,
-      fontFamily: "JetBrainsMono_400Regular",
-      color: isDark ? "rgba(255,255,255,0.5)" : colors.stratus[500],
-      textAlign: "right",
-    },
-    saveSection: {
-      marginTop: 10,
-      paddingTop: 8,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: "rgba(12,140,233,0.1)",
-    },
-    saveBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      alignSelf: "flex-start",
-      backgroundColor: "rgba(12,140,233,0.06)",
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderWidth: 1,
-      borderColor: "rgba(12,140,233,0.12)",
-    },
-    saveBtnText: {
-      fontSize: 11,
-      fontFamily: "Inter_600SemiBold",
-      color: isDark ? "rgba(255,255,255,0.7)" : colors.stratus[600],
-    },
-    saveInputRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-    saveConfirmBtn: {
-      backgroundColor: colors.stratus[500],
-      borderRadius: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-    },
-    saveConfirmText: {
-      fontSize: 11,
-      fontFamily: "Inter_700Bold",
-      color: "#ffffff",
-    },
-    cancelText: {
-      fontSize: 11,
-      fontFamily: "Inter_500Medium",
-      color: colors.stratus[400],
-    },
-    landingRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginTop: 12,
-      paddingTop: 10,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: "rgba(12,140,233,0.12)",
-    },
-    checkbox: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-    checkboxInner: {
-      width: 16,
-      height: 16,
-      borderRadius: 4,
-      borderWidth: 1.5,
-      borderColor: colors.stratus[300],
-    },
-    checkboxChecked: {
-      backgroundColor: colors.stratus[500],
-      borderColor: colors.stratus[500],
-    },
-    checkboxLabel: {
-      fontSize: 11,
-      fontFamily: "Inter_500Medium",
-      color: isDark ? "rgba(255,255,255,0.7)" : colors.stratus[600],
-    },
-    burnInput: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-    },
-    burnLabel: {
-      fontSize: 10,
-      fontFamily: "Inter_400Regular",
-      color: isDark ? "rgba(255,255,255,0.5)" : colors.stratus[500],
-    },
-  });
+  // Theme-dependent dynamic colors
+  const dc = {
+    fg: isDark ? theme.foreground : colors.stratus[800],
+    fgStrong: isDark ? theme.foreground : colors.stratus[900],
+    fgDim: isDark ? "rgba(255,255,255,0.7)" : colors.stratus[600],
+    fgMuted: isDark ? "rgba(255,255,255,0.5)" : colors.stratus[500],
+    fgSubtle: isDark ? "rgba(255,255,255,0.8)" : colors.stratus[700],
+    header: isDark ? theme.foreground : colors.stratus[700],
+    placeholder: isDark ? "rgba(255,255,255,0.3)" : "rgba(8,63,110,0.3)",
+    chipText: isDark ? "rgba(255,255,255,0.7)" : colors.stratus[600],
+    chipActiveText: isDark ? theme.foreground : colors.stratus[800],
+  };
 
   const handleSave = () => {
     if (saveName.trim().length === 0) return;
@@ -350,77 +90,105 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
     <CloudCard>
       <View style={styles.header}>
         <Scale size={14} color={colors.stratus[500]} />
-        <Text style={styles.headerText}>Weight & Balance</Text>
+        <Text style={[styles.headerText, { color: dc.header }]}>Weight & Balance</Text>
       </View>
 
       {/* Aircraft Selector */}
       <View style={styles.field}>
-        <Text style={styles.label}>Aircraft</Text>
-        <View style={styles.acRow}>
-          {AIRCRAFT_DATABASE.map((ac) => (
-            <Pressable
-              key={ac.id}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setAircraft(ac);
-              }}
-              style={[
-                styles.acChip,
-                aircraft.id === ac.id && styles.acChipActive,
-              ]}
+        <Text style={[styles.label, { color: dc.fgDim }]}>Aircraft</Text>
+        {aircraftGroups.map((group) => (
+          <View key={group.label} style={styles.acGroup}>
+            <Text style={[styles.acGroupLabel, { color: dc.fgMuted }]}>{group.label}</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.acScrollContent}
             >
-              <Text
-                style={[
-                  styles.acChipText,
-                  aircraft.id === ac.id && styles.acChipTextActive,
-                ]}
-              >
-                {ac.name}
-              </Text>
-            </Pressable>
-          ))}
-          {customAircraft.map((cp) => {
-            const ac = customProfileToAircraftType(cp);
-            return (
-              <Pressable
-                key={ac.id}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setAircraft(ac);
-                }}
-                style={[
-                  styles.acChip,
-                  styles.acChipCustom,
-                  aircraft.id === ac.id && styles.acChipActive,
-                ]}
-              >
-                <Text
+              {group.items.map(({ ac, shortName }) => (
+                <Pressable
+                  key={ac.id}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setAircraft(ac);
+                  }}
                   style={[
-                    styles.acChipText,
-                    aircraft.id === ac.id && styles.acChipTextActive,
+                    styles.acChip,
+                    aircraft.id === ac.id && styles.acChipActive,
                   ]}
+                  accessibilityLabel={`Select ${ac.name}`}
+                  accessibilityRole="button"
                 >
-                  {ac.name}
-                </Text>
-              </Pressable>
-            );
-          })}
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowCustomModal(true);
-            }}
-            style={styles.acAddBtn}
-          >
-            <Plus size={14} color={colors.stratus[500]} />
-          </Pressable>
-        </View>
+                  <Text
+                    style={[
+                      styles.acChipText,
+                      { color: dc.chipText },
+                      aircraft.id === ac.id && [styles.acChipTextActive, { color: dc.chipActiveText }],
+                    ]}
+                  >
+                    {shortName}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ))}
+        {customAircraft.length > 0 && (
+          <View style={styles.acGroup}>
+            <Text style={[styles.acGroupLabel, { color: dc.fgMuted }]}>CUSTOM</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.acScrollContent}
+            >
+              {customAircraft.map((cp) => {
+                const ac = customProfileToAircraftType(cp);
+                return (
+                  <Pressable
+                    key={ac.id}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setAircraft(ac);
+                    }}
+                    style={[
+                      styles.acChip,
+                      styles.acChipCustom,
+                      aircraft.id === ac.id && styles.acChipActive,
+                    ]}
+                    accessibilityLabel={`Select custom aircraft ${ac.name}`}
+                    accessibilityRole="button"
+                  >
+                    <Text
+                      style={[
+                        styles.acChipText,
+                        { color: dc.chipText },
+                        aircraft.id === ac.id && [styles.acChipTextActive, { color: dc.chipActiveText }],
+                      ]}
+                    >
+                      {ac.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowCustomModal(true);
+          }}
+          style={styles.acAddBtn}
+          accessibilityLabel="Add custom aircraft"
+          accessibilityRole="button"
+        >
+          <Plus size={14} color={colors.stratus[500]} />
+        </Pressable>
       </View>
 
       {/* Saved Aircraft Profiles */}
       {savedProfiles.length > 0 && (
         <View style={styles.savedSection}>
-          <Text style={styles.savedLabel}>Saved Aircraft</Text>
+          <Text style={[styles.savedLabel, { color: dc.fgDim }]}>Saved Aircraft</Text>
           {savedProfiles.map((profile, idx) => (
             <View key={idx} style={styles.savedRow}>
               <Pressable
@@ -430,7 +198,7 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
                 }}
                 style={styles.savedChip}
               >
-                <Text style={styles.savedChipText}>
+                <Text style={[styles.savedChipText, { color: dc.fgSubtle }]}>
                   {profile.customName} ({profile.emptyWeight} lbs)
                 </Text>
               </Pressable>
@@ -440,6 +208,8 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
                   deleteSavedProfile(idx);
                 }}
                 hitSlop={8}
+                accessibilityLabel={`Delete ${profile.customName}`}
+                accessibilityRole="button"
               >
                 <Trash2 size={12} color={colors.alert.red} />
               </Pressable>
@@ -450,15 +220,15 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
 
       {/* Table Header */}
       <View style={styles.tableHeader}>
-        <Text style={[styles.th, { flex: 1.5 }]}>Item</Text>
-        <Text style={[styles.th, { flex: 1 }]}>Weight</Text>
-        <Text style={[styles.th, { flex: 0.7 }]}>Arm</Text>
-        <Text style={[styles.th, { flex: 1.2 }]}>Moment</Text>
+        <Text style={[styles.th, { flex: 1.5, color: dc.fgMuted }]}>Item</Text>
+        <Text style={[styles.th, { flex: 1, color: dc.fgMuted }]}>Weight</Text>
+        <Text style={[styles.th, { flex: 0.7, color: dc.fgMuted }]}>Arm</Text>
+        <Text style={[styles.th, { flex: 1.2, color: dc.fgMuted }]}>Moment</Text>
       </View>
 
       {/* Empty Aircraft — editable weight + arm */}
       <View style={styles.tableRow}>
-        <Text style={[styles.td, { flex: 1.5 }]}>Empty</Text>
+        <Text style={[styles.td, { flex: 1.5, color: dc.fgSubtle }]}>Empty</Text>
         <View style={{ flex: 1 }}>
           <TextInput
             value={String(effectiveEmptyWeight)}
@@ -468,8 +238,8 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
             }}
             keyboardType="decimal-pad"
             placeholder={String(aircraft.emptyWeight)}
-            placeholderTextColor={isDark ? "rgba(255,255,255,0.3)" : "rgba(8,63,110,0.3)"}
-            style={styles.input}
+            placeholderTextColor={dc.placeholder}
+            style={[styles.input, { color: dc.fg }]}
           />
         </View>
         <View style={{ flex: 0.7 }}>
@@ -481,11 +251,11 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
             }}
             keyboardType="decimal-pad"
             placeholder={String(aircraft.emptyArm)}
-            placeholderTextColor={isDark ? "rgba(255,255,255,0.3)" : "rgba(8,63,110,0.3)"}
-            style={[styles.input, { fontSize: 10 }]}
+            placeholderTextColor={dc.placeholder}
+            style={[styles.input, styles.inputSmall, { color: dc.fg }]}
           />
         </View>
-        <Text style={[styles.tdDim, { flex: 1.2 }]}>
+        <Text style={[styles.tdDim, { flex: 1.2, color: dc.fgMuted }]}>
           {Math.round(effectiveEmptyMoment).toLocaleString()}
         </Text>
       </View>
@@ -493,19 +263,19 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
       {/* Stations */}
       {aircraft.stations.map((station, idx) => (
         <View key={station.name} style={styles.tableRow}>
-          <Text style={[styles.td, { flex: 1.5 }]}>{station.name}</Text>
+          <Text style={[styles.td, { flex: 1.5, color: dc.fgSubtle }]}>{station.name}</Text>
           <View style={{ flex: 1 }}>
             <TextInput
               value={stationWeights[idx] ? String(stationWeights[idx]) : ""}
               onChangeText={(t) => setStationWeight(idx, Number(t) || 0)}
               keyboardType="decimal-pad"
               placeholder="0"
-              placeholderTextColor={isDark ? "rgba(255,255,255,0.3)" : "rgba(8,63,110,0.3)"}
-              style={styles.input}
+              placeholderTextColor={dc.placeholder}
+              style={[styles.input, { color: dc.fg }]}
             />
           </View>
-          <Text style={[styles.tdDim, { flex: 0.7 }]}>{station.arm}</Text>
-          <Text style={[styles.tdDim, { flex: 1.2 }]}>
+          <Text style={[styles.tdDim, { flex: 0.7, color: dc.fgMuted }]}>{station.arm}</Text>
+          <Text style={[styles.tdDim, { flex: 1.2, color: dc.fgMuted }]}>
             {((stationWeights[idx] || 0) * station.arm).toLocaleString()}
           </Text>
         </View>
@@ -515,16 +285,18 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
       <View style={styles.tableRow}>
         <View style={[styles.fuelLabel, { flex: 1.5 }]}>
           <Fuel size={12} color={colors.stratus[500]} />
-          <Text style={styles.td}>Fuel</Text>
+          <Text style={[styles.td, { color: dc.fgSubtle }]}>Fuel</Text>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               toggleFuelUnit();
             }}
             style={styles.unitToggle}
+            accessibilityLabel={`Switch fuel unit to ${fuelUnit === "gal" ? "pounds" : "gallons"}`}
+            accessibilityRole="button"
           >
             <ArrowRightLeft size={10} color={colors.stratus[500]} />
-            <Text style={styles.unitText}>{fuelUnit.toUpperCase()}</Text>
+            <Text style={[styles.unitText, { color: dc.fgDim }]}>{fuelUnit.toUpperCase()}</Text>
           </Pressable>
         </View>
         <View style={{ flex: 1 }}>
@@ -533,12 +305,12 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
             onChangeText={(t) => setFuelGallons(Number(t) || 0)}
             keyboardType="decimal-pad"
             placeholder="0"
-            placeholderTextColor={isDark ? "rgba(255,255,255,0.3)" : "rgba(8,63,110,0.3)"}
-            style={styles.input}
+            placeholderTextColor={dc.placeholder}
+            style={[styles.input, { color: dc.fg }]}
           />
         </View>
-        <Text style={[styles.tdDim, { flex: 0.7 }]}>{aircraft.fuelArm}</Text>
-        <Text style={[styles.tdDim, { flex: 1.2 }]}>
+        <Text style={[styles.tdDim, { flex: 0.7, color: dc.fgMuted }]}>{aircraft.fuelArm}</Text>
+        <Text style={[styles.tdDim, { flex: 1.2, color: dc.fgMuted }]}>
           {(
             (fuelUnit === "gal"
               ? fuelGallons * aircraft.fuelWeightPerGal
@@ -549,22 +321,22 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
 
       {/* Totals */}
       <View style={styles.totalRow}>
-        <Text style={[styles.totalLabel, { flex: 1.5 }]}>Total</Text>
-        <Text style={[styles.totalValue, { flex: 1 }]}>
+        <Text style={[styles.totalLabel, { flex: 1.5, color: dc.fgStrong }]}>Total</Text>
+        <Text style={[styles.totalValue, { flex: 1, color: dc.fgStrong }]}>
           {Math.round(result.totalWeight)}
         </Text>
-        <Text style={[styles.totalValueDim, { flex: 0.7 }]}>
+        <Text style={[styles.totalValueDim, { flex: 0.7, color: dc.fgSubtle }]}>
           {result.cg.toFixed(1)}
         </Text>
-        <Text style={[styles.totalValueDim, { flex: 1.2 }]}>
+        <Text style={[styles.totalValueDim, { flex: 1.2, color: dc.fgSubtle }]}>
           {Math.round(result.totalMoment).toLocaleString()}
         </Text>
       </View>
 
       {/* ZFW */}
       <View style={styles.zfwRow}>
-        <Text style={[styles.zfwLabel, { flex: 1.5 }]}>ZFW</Text>
-        <Text style={[styles.zfwValue, { flex: 1 }]}>
+        <Text style={[styles.zfwLabel, { flex: 1.5, color: dc.fgMuted }]}>ZFW</Text>
+        <Text style={[styles.zfwValue, { flex: 1, color: dc.fgMuted }]}>
           {Math.round(result.zfw)}
         </Text>
       </View>
@@ -578,9 +350,11 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
               setShowSaveInput(true);
             }}
             style={styles.saveBtn}
+            accessibilityLabel="Save aircraft profile"
+            accessibilityRole="button"
           >
             <Save size={12} color={colors.stratus[500]} />
-            <Text style={styles.saveBtnText}>Save Aircraft</Text>
+            <Text style={[styles.saveBtnText, { color: dc.fgDim }]}>Save Aircraft</Text>
           </Pressable>
         ) : (
           <View style={styles.saveInputRow}>
@@ -588,9 +362,9 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
               value={saveName}
               onChangeText={setSaveName}
               placeholder="e.g. N12345"
-              placeholderTextColor={isDark ? "rgba(255,255,255,0.3)" : "rgba(8,63,110,0.3)"}
+              placeholderTextColor={dc.placeholder}
               autoCapitalize="characters"
-              style={[styles.input, { flex: 1 }]}
+              style={[styles.input, { flex: 1, color: dc.fg }]}
             />
             <Pressable onPress={handleSave} style={styles.saveConfirmBtn}>
               <Text style={styles.saveConfirmText}>Save</Text>
@@ -613,6 +387,8 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
             setShowLanding(!showLanding);
           }}
           style={styles.checkbox}
+          accessibilityLabel={showLanding ? "Hide landing CG" : "Show landing CG"}
+          accessibilityRole="checkbox"
         >
           <View
             style={[
@@ -620,18 +396,18 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
               showLanding && styles.checkboxChecked,
             ]}
           />
-          <Text style={styles.checkboxLabel}>Show Landing CG</Text>
+          <Text style={[styles.checkboxLabel, { color: dc.fgDim }]}>Show Landing CG</Text>
         </Pressable>
         {showLanding && (
           <View style={styles.burnInput}>
-            <Text style={styles.burnLabel}>Burn (gal):</Text>
+            <Text style={[styles.burnLabel, { color: dc.fgMuted }]}>Burn (gal):</Text>
             <TextInput
               value={estimatedFuelBurn ? String(estimatedFuelBurn) : ""}
               onChangeText={(t) => setEstimatedFuelBurn(Number(t) || 0)}
               keyboardType="decimal-pad"
               placeholder="0"
-              placeholderTextColor={isDark ? "rgba(255,255,255,0.3)" : "rgba(8,63,110,0.3)"}
-              style={[styles.input, { width: 50 }]}
+              placeholderTextColor={dc.placeholder}
+              style={[styles.input, { width: 50, color: dc.fg }]}
             />
           </View>
         )}
@@ -648,3 +424,290 @@ export function WeightBalanceForm({ result }: WeightBalanceFormProps) {
     </CloudCard>
   );
 }
+
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 14,
+  },
+  headerText: {
+    fontSize: 11,
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  field: { marginBottom: 12 },
+  label: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 6,
+  },
+  acGroup: { marginBottom: 8 },
+  acGroupLabel: {
+    fontSize: 10,
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    letterSpacing: 0.8,
+    marginBottom: 5,
+    textTransform: "uppercase",
+  },
+  acScrollContent: { flexDirection: "row", gap: 8, paddingRight: 16 },
+  acChip: {
+    backgroundColor: "rgba(12,140,233,0.06)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(12,140,233,0.1)",
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  acChipActive: {
+    backgroundColor: "rgba(12,140,233,0.12)",
+    borderColor: colors.stratus[500],
+  },
+  acChipText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+  },
+  acChipTextActive: {
+    fontFamily: "Inter_700Bold",
+  },
+  acChipCustom: {
+    borderColor: "rgba(34,197,94,0.25)",
+    backgroundColor: "rgba(34,197,94,0.06)",
+  },
+  acAddBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(12,140,233,0.15)",
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(12,140,233,0.04)",
+  },
+  savedSection: {
+    marginBottom: 12,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(12,140,233,0.1)",
+  },
+  savedLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 6,
+  },
+  savedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  savedChip: {
+    flex: 1,
+    backgroundColor: "rgba(34,197,94,0.08)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "rgba(34,197,94,0.2)",
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  savedChipText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+  },
+  tableHeader: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(12,140,233,0.12)",
+    paddingBottom: 6,
+    marginBottom: 4,
+  },
+  th: {
+    fontSize: 10,
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    textTransform: "uppercase",
+    textAlign: "right",
+  },
+  tableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(12,140,233,0.06)",
+  },
+  td: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+  },
+  tdDim: {
+    fontSize: 11,
+    fontFamily: "JetBrainsMono_400Regular",
+    textAlign: "right",
+  },
+  input: {
+    fontSize: 12,
+    fontFamily: "JetBrainsMono_600SemiBold",
+    backgroundColor: "rgba(12,140,233,0.04)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(12,140,233,0.08)",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    textAlign: "right",
+  },
+  inputSmall: {
+    fontSize: 10,
+  },
+  fuelLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  unitToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "rgba(12,140,233,0.08)",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 4,
+    minHeight: 44,
+  },
+  unitText: {
+    fontSize: 10,
+    fontFamily: "SpaceGrotesk_600SemiBold",
+  },
+  totalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderTopWidth: 2,
+    borderTopColor: "rgba(12,140,233,0.2)",
+    marginTop: 6,
+  },
+  totalLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+  },
+  totalValue: {
+    fontSize: 13,
+    fontFamily: "JetBrainsMono_700Bold",
+    textAlign: "right",
+  },
+  totalValueDim: {
+    fontSize: 12,
+    fontFamily: "JetBrainsMono_600SemiBold",
+    textAlign: "right",
+  },
+  zfwRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  zfwLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+  },
+  zfwValue: {
+    fontSize: 11,
+    fontFamily: "JetBrainsMono_400Regular",
+    textAlign: "right",
+  },
+  saveSection: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(12,140,233,0.1)",
+  },
+  saveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(12,140,233,0.06)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(12,140,233,0.12)",
+    minHeight: 44,
+  },
+  saveBtnText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+  },
+  saveInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  saveConfirmBtn: {
+    backgroundColor: colors.stratus[500],
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  saveConfirmText: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    color: "#ffffff",
+  },
+  cancelText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: colors.stratus[400],
+  },
+  landingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(12,140,233,0.12)",
+  },
+  checkbox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 44,
+  },
+  checkboxInner: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: colors.stratus[300],
+  },
+  checkboxChecked: {
+    backgroundColor: colors.stratus[500],
+    borderColor: colors.stratus[500],
+  },
+  checkboxLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+  },
+  burnInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  burnLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+  },
+  tdMono: {
+    fontSize: 12,
+    fontFamily: "JetBrainsMono_600SemiBold",
+    textAlign: "right",
+  },
+});

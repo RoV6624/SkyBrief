@@ -47,7 +47,14 @@ export function useRouteBriefing(waypointIcaos: string[]) {
         })
         .filter((w): w is RouteWaypoint => w !== null);
 
-      if (waypoints.length < 2) return null;
+      if (waypoints.length < 2) {
+        const failed = waypointIcaos.filter((icao) => !findStationCoords(icao.toUpperCase()));
+        throw new Error(
+          failed.length > 0
+            ? `Could not resolve: ${failed.join(", ")}. Check ICAO identifiers and try again.`
+            : "Need at least 2 valid waypoints to generate a route briefing."
+        );
+      }
 
       // Find stations along path
       const pathResult: PathResult = findStationsAlongPath(waypoints);

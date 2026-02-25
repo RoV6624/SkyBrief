@@ -3,6 +3,7 @@ import {
   hasPermission,
   isInstructorRole,
   isSchoolManager,
+  isStaffRole,
   getRoleDisplayName,
   getRoleLevel,
 } from "../roles";
@@ -31,8 +32,8 @@ describe("getPermissions", () => {
     expect(p.canApproveDispatch).toBe(true);
   });
 
-  it("chief_instructor can dispatch and approve", () => {
-    const p = getPermissions("chief_instructor");
+  it("school_admin can dispatch and approve", () => {
+    const p = getPermissions("school_admin");
     expect(p.canManageTemplates).toBe(true);
     expect(p.canDispatch).toBe(true);
     expect(p.canApproveDispatch).toBe(true);
@@ -73,7 +74,7 @@ describe("dispatch permissions summary", () => {
     expect(hasPermission("pilot", "canDispatch")).toBe(false);
     expect(hasPermission("student", "canDispatch")).toBe(true);
     expect(hasPermission("instructor", "canDispatch")).toBe(true);
-    expect(hasPermission("chief_instructor", "canDispatch")).toBe(true);
+    expect(hasPermission("school_admin", "canDispatch")).toBe(true);
     expect(hasPermission("admin", "canDispatch")).toBe(true);
   });
 
@@ -81,30 +82,38 @@ describe("dispatch permissions summary", () => {
     expect(hasPermission("pilot", "canApproveDispatch")).toBe(false);
     expect(hasPermission("student", "canApproveDispatch")).toBe(false);
     expect(hasPermission("instructor", "canApproveDispatch")).toBe(true);
-    expect(hasPermission("chief_instructor", "canApproveDispatch")).toBe(true);
+    expect(hasPermission("school_admin", "canApproveDispatch")).toBe(true);
     expect(hasPermission("admin", "canApproveDispatch")).toBe(true);
   });
 });
 
 describe("isInstructorRole", () => {
   it("returns true for instructor", () => expect(isInstructorRole("instructor")).toBe(true));
-  it("returns true for chief_instructor", () => expect(isInstructorRole("chief_instructor")).toBe(true));
+  it("returns false for school_admin", () => expect(isInstructorRole("school_admin")).toBe(false));
   it("returns false for student", () => expect(isInstructorRole("student")).toBe(false));
   it("returns false for pilot", () => expect(isInstructorRole("pilot")).toBe(false));
   it("returns false for admin", () => expect(isInstructorRole("admin")).toBe(false));
 });
 
 describe("isSchoolManager", () => {
-  it("returns true for chief_instructor", () => expect(isSchoolManager("chief_instructor")).toBe(true));
+  it("returns true for school_admin", () => expect(isSchoolManager("school_admin")).toBe(true));
   it("returns true for admin", () => expect(isSchoolManager("admin")).toBe(true));
   it("returns false for instructor", () => expect(isSchoolManager("instructor")).toBe(false));
   it("returns false for student", () => expect(isSchoolManager("student")).toBe(false));
 });
 
+describe("isStaffRole", () => {
+  it("returns true for instructor", () => expect(isStaffRole("instructor")).toBe(true));
+  it("returns true for school_admin", () => expect(isStaffRole("school_admin")).toBe(true));
+  it("returns true for admin", () => expect(isStaffRole("admin")).toBe(true));
+  it("returns false for student", () => expect(isStaffRole("student")).toBe(false));
+  it("returns false for pilot", () => expect(isStaffRole("pilot")).toBe(false));
+});
+
 describe("getRoleDisplayName", () => {
   it("student → Student Pilot", () => expect(getRoleDisplayName("student")).toBe("Student Pilot"));
   it("instructor → Flight Instructor (CFI)", () => expect(getRoleDisplayName("instructor")).toBe("Flight Instructor (CFI)"));
-  it("chief_instructor → Chief Flight Instructor", () => expect(getRoleDisplayName("chief_instructor")).toBe("Chief Flight Instructor"));
+  it("school_admin → School Administrator", () => expect(getRoleDisplayName("school_admin")).toBe("School Administrator"));
   it("admin → Administrator", () => expect(getRoleDisplayName("admin")).toBe("Administrator"));
   it("pilot → Pilot", () => expect(getRoleDisplayName("pilot")).toBe("Pilot"));
   it("unknown → Pilot", () => expect(getRoleDisplayName("unknown" as UserRole)).toBe("Pilot"));
@@ -112,8 +121,8 @@ describe("getRoleDisplayName", () => {
 
 describe("getRoleLevel", () => {
   it("hierarchy is correct", () => {
-    expect(getRoleLevel("admin")).toBeGreaterThan(getRoleLevel("chief_instructor"));
-    expect(getRoleLevel("chief_instructor")).toBeGreaterThan(getRoleLevel("instructor"));
+    expect(getRoleLevel("admin")).toBeGreaterThan(getRoleLevel("school_admin"));
+    expect(getRoleLevel("school_admin")).toBeGreaterThan(getRoleLevel("instructor"));
     expect(getRoleLevel("instructor")).toBeGreaterThan(getRoleLevel("student"));
   });
 

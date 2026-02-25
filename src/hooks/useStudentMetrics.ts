@@ -4,6 +4,8 @@ import {
   getStudentMetrics,
   getSchoolStudents,
   getInstructorReviewQueue,
+  getInstructorStudents,
+  getStudentCurriculumProgress,
   type StudentMetrics,
 } from "@/services/tenant-api";
 import type { BriefingSubmission } from "@/lib/briefing/types";
@@ -62,5 +64,35 @@ export function useReviewQueue(instructorUid: string | null, tenantId: string | 
     enabled: !!instructorUid && !!tenantId,
     refetchInterval: 60_000, // Check for new submissions every minute
     staleTime: 30_000,
+  });
+}
+
+/**
+ * Fetch students assigned to a specific instructor
+ */
+export function useInstructorStudents(instructorUid: string | null, tenantId: string | null) {
+  return useQuery({
+    queryKey: ["instructor-students", instructorUid, tenantId],
+    queryFn: async () => {
+      if (!instructorUid || !tenantId) return [];
+      return getInstructorStudents(instructorUid, tenantId);
+    },
+    enabled: !!instructorUid && !!tenantId,
+    staleTime: 300_000,
+  });
+}
+
+/**
+ * Fetch curriculum progress for a student
+ */
+export function useStudentCurriculumProgress(studentUid: string | null, tenantId: string | null) {
+  return useQuery({
+    queryKey: ["student-curriculum-progress", studentUid, tenantId],
+    queryFn: async () => {
+      if (!studentUid || !tenantId) return { completedLessonIds: [], totalAssigned: 0 };
+      return getStudentCurriculumProgress(studentUid, tenantId);
+    },
+    enabled: !!studentUid && !!tenantId,
+    staleTime: 300_000,
   });
 }

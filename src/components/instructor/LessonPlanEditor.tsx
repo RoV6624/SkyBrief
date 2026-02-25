@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   Trash2,
   Check,
   ChevronDown,
+  Sparkles,
 } from "lucide-react-native";
 
 import { CloudCard } from "@/components/ui/CloudCard";
@@ -22,6 +23,8 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { colors } from "@/theme/tokens";
 import type { ChecklistItemId, FlightType } from "@/lib/briefing/types";
 import { getDefaultChecklistItems } from "@/lib/briefing/checklist";
+import { getDefaultTemplate } from "@/lib/briefing/templates";
+import { LESSON_PRESETS, COMMON_OBJECTIVES } from "@/lib/briefing/lesson-presets";
 
 export interface LessonPlan {
   id: string;
@@ -60,6 +63,8 @@ export function LessonPlanEditor({
   onCancel,
 }: LessonPlanEditorProps) {
   const { isDark } = useTheme();
+  const isNewPlan = !plan;
+  const initialFlightType = useRef(plan?.flightType ?? "local");
 
   const [title, setTitle] = useState(plan?.title ?? "");
   const [description, setDescription] = useState(plan?.description ?? "");
@@ -77,6 +82,34 @@ export function LessonPlanEditor({
   const cardBg = isDark ? colors.stratus[800] : colors.stratus[50];
 
   const checklistItems = getDefaultChecklistItems(flightType);
+
+  // Smart defaults: when flight type changes on a new plan, auto-set checklist items
+  useEffect(() => {
+    if (!isNewPlan) return;
+    // Skip the initial mount — only trigger on subsequent changes
+    if (flightType === initialFlightType.current) return;
+    initialFlightType.current = flightType;
+
+    const template = getDefaultTemplate(flightType);
+    setSelectedItems(new Set(template.requiredItems));
+    if (template.maxFratScore) {
+      setMaxFrat(String(template.maxFratScore));
+    }
+  }, [flightType, isNewPlan]);
+
+  const applyPreset = (presetKey: string) => {
+    const preset = LESSON_PRESETS.find((p) => p.key === presetKey);
+    if (!preset) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTitle(preset.title);
+    setDescription(preset.description);
+    setFlightType(preset.flightType);
+    setMaxFrat(String(preset.maxFratScore));
+    setObjectives(preset.objectives.length > 0 ? [...preset.objectives] : [""]);
+    setSelectedItems(new Set(preset.checklistItems));
+    initialFlightType.current = preset.flightType;
+  };
 
   const toggleItem = (id: ChecklistItemId) => {
     Haptics.selectionAsync();
@@ -102,6 +135,19 @@ export function LessonPlanEditor({
     setObjectives(updated);
   };
 
+  const addQuickObjective = (text: string) => {
+    Haptics.selectionAsync();
+    // Replace the first empty objective, or append
+    const emptyIdx = objectives.findIndex((o) => !o.trim());
+    if (emptyIdx >= 0) {
+      const updated = [...objectives];
+      updated[emptyIdx] = text;
+      setObjectives(updated);
+    } else {
+      setObjectives([...objectives, text]);
+    }
+  };
+
   const handleSave = () => {
     if (!title.trim()) {
       Alert.alert("Missing Title", "Please enter a lesson plan title.");
@@ -121,11 +167,56 @@ export function LessonPlanEditor({
     });
   };
 
+  // Quick-add objectives: filter out already-added ones
+  const currentObjectiveTexts = new Set(objectives.map((o) => o.trim()).filter(Boolean));
+  const quickObjectives = (COMMON_OBJECTIVES[flightType] ?? []).filter(
+    (o) => !currentObjectiveTexts.has(o)
+  );
+
   return (
     <ScrollView
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
     >
+      {/* Preset Templates (new plans only) */}
+      {isNewPlan && (
+        <>
+          <Text style={[styles.sectionTitle, { color: subColor }]}>
+            START FROM TEMPLATE
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.presetRow}
+          >
+            {LESSON_PRESETS.map((preset) => (
+              <Pressable
+                key={preset.key}
+                onPress={() => applyPreset(preset.key)}
+                style={[
+                  styles.presetCard,
+                  { backgroundColor: cardBg, borderColor },
+                ]}
+              >
+                <Sparkles size={14} color={colors.accent} />
+                <Text
+                  style={[styles.presetTitle, { color: textColor }]}
+                  numberOfLines={1}
+                >
+                  {preset.title}
+                </Text>
+                <Text
+                  style={[styles.presetDesc, { color: subColor }]}
+                  numberOfLines={2}
+                >
+                  {preset.description}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </>
+      )}
+
       <Text style={[styles.sectionTitle, { color: subColor }]}>LESSON DETAILS</Text>
 
       <TextInput
@@ -213,6 +304,30 @@ export function LessonPlanEditor({
         <Text style={[styles.addText, { color: colors.accent }]}>Add Objective</Text>
       </Pressable>
 
+      {/* Quick-add Objectives */}
+      {quickObjectives.length > 0 && (
+        <>
+          <Text style={[styles.quickLabel, { color: subColor }]}>Quick add:</Text>
+          <View style={styles.quickChipRow}>
+            {quickObjectives.map((obj) => (
+              <Pressable
+                key={obj}
+                onPress={() => addQuickObjective(obj)}
+                style={[styles.quickChip, { backgroundColor: inputBg, borderColor }]}
+              >
+                <Plus size={10} color={colors.accent} />
+                <Text
+                  style={[styles.quickChipText, { color: textColor }]}
+                  numberOfLines={1}
+                >
+                  {obj}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
+
       {/* Required Checklist Items */}
       <Text style={[styles.sectionTitle, { color: subColor }]}>
         REQUIRED BRIEFING ITEMS
@@ -286,6 +401,23 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 8,
   },
+  presetRow: { gap: 10, paddingVertical: 4 },
+  presetCard: {
+    width: 160,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 4,
+  },
+  presetTitle: {
+    fontSize: 13,
+    fontFamily: "SpaceGrotesk_600SemiBold",
+  },
+  presetDesc: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 15,
+  },
   inputLarge: {
     fontSize: 16,
     fontFamily: "SpaceGrotesk_600SemiBold",
@@ -345,6 +477,30 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   addText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  quickLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    marginTop: 4,
+  },
+  quickChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  quickChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  quickChipText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    maxWidth: 200,
+  },
   checkRow: {
     flexDirection: "row",
     alignItems: "center",

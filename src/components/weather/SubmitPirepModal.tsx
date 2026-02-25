@@ -10,6 +10,8 @@ import {
   Alert,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
+import * as Linking from "expo-linking";
 import {
   X,
   Send,
@@ -18,6 +20,9 @@ import {
   Thermometer,
   AlertTriangle,
   Snowflake,
+  Cloud,
+  Copy,
+  ExternalLink,
 } from "lucide-react-native";
 
 import { useTheme } from "@/theme/ThemeProvider";
@@ -28,9 +33,11 @@ import {
   formatPirepText,
   TURBULENCE_OPTIONS,
   ICING_OPTIONS,
+  SKY_CONDITION_OPTIONS,
   type PirepSubmission,
   type TurbulenceIntensity,
   type IcingIntensity,
+  type SkyCondition,
 } from "@/services/pirep-submit";
 
 interface SubmitPirepModalProps {
@@ -38,6 +45,11 @@ interface SubmitPirepModalProps {
   onClose: () => void;
   station: string;
 }
+
+const safeParseInt = (value: string, defaultValue = 0): number => {
+  const num = parseInt(value, 10);
+  return isNaN(num) ? defaultValue : num;
+};
 
 export function SubmitPirepModal({ visible, onClose, station }: SubmitPirepModalProps) {
   const { isDark } = useTheme();
@@ -47,10 +59,16 @@ export function SubmitPirepModal({ visible, onClose, station }: SubmitPirepModal
   const [aircraftType, setAircraftType] = useState("");
   const [turbulence, setTurbulence] = useState<TurbulenceIntensity>("NEG");
   const [icing, setIcing] = useState<IcingIntensity>("NEG");
+  const [skyCondition, setSkyCondition] = useState<SkyCondition | "">("");
+  const [cloudBase, setCloudBase] = useState("");
+  const [cloudTop, setCloudTop] = useState("");
+  const [windDirection, setWindDirection] = useState("");
+  const [windSpeed, setWindSpeed] = useState("");
   const [temperature, setTemperature] = useState("");
   const [flightVis, setFlightVis] = useState("");
   const [remarks, setRemarks] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submittedText, setSubmittedText] = useState<string | null>(null);
 
   const textColor = isDark ? "#FFFFFF" : colors.stratus[900];
   const subColor = isDark ? colors.stratus[400] : colors.stratus[500];
@@ -58,6 +76,27 @@ export function SubmitPirepModal({ visible, onClose, station }: SubmitPirepModal
   const cardBg = isDark ? colors.stratus[800] : colors.stratus[50];
   const inputBg = isDark ? colors.stratus[700] : colors.stratus[100];
   const borderColor = isDark ? colors.stratus[700] : colors.stratus[200];
+
+  const resetForm = () => {
+    setAltitude("");
+    setAircraftType("");
+    setTurbulence("NEG");
+    setIcing("NEG");
+    setSkyCondition("");
+    setCloudBase("");
+    setCloudTop("");
+    setWindDirection("");
+    setWindSpeed("");
+    setTemperature("");
+    setFlightVis("");
+    setRemarks("");
+    setSubmittedText(null);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
 
   const handleSubmit = useCallback(async () => {
     if (!altitude || !aircraftType) {
@@ -67,11 +106,16 @@ export function SubmitPirepModal({ visible, onClose, station }: SubmitPirepModal
 
     const pirep: PirepSubmission = {
       nearestStation: station,
-      altitude: parseInt(altitude, 10),
+      altitude: safeParseInt(altitude),
       aircraftType: aircraftType.toUpperCase(),
       turbulence: turbulence !== "NEG" ? turbulence : undefined,
       icing: icing !== "NEG" ? icing : undefined,
-      temperature: temperature ? parseInt(temperature, 10) : undefined,
+      skyCondition: skyCondition || undefined,
+      cloudBase: cloudBase ? safeParseInt(cloudBase) : undefined,
+      cloudTop: cloudTop ? safeParseInt(cloudTop) : undefined,
+      windDirection: windDirection ? safeParseInt(windDirection) : undefined,
+      windSpeed: windSpeed ? safeParseInt(windSpeed) : undefined,
+      temperature: temperature ? safeParseInt(temperature) : undefined,
       flightVisibility: flightVis ? parseFloat(flightVis) : undefined,
       remarks: remarks || undefined,
     };
@@ -85,16 +129,26 @@ export function SubmitPirepModal({ visible, onClose, station }: SubmitPirepModal
 
     if (id) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        "PIREP Submitted",
-        `Your pilot report near ${station} has been submitted.\n\n${formatPirepText(pirep)}`,
-        [{ text: "OK", onPress: onClose }]
-      );
+      setSubmittedText(formatPirepText(pirep));
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Submission Failed", "Could not submit PIREP. Please try again.");
     }
-  }, [altitude, aircraftType, turbulence, icing, temperature, flightVis, remarks, station, user, onClose]);
+  }, [altitude, aircraftType, turbulence, icing, skyCondition, cloudBase, cloudTop, windDirection, windSpeed, temperature, flightVis, remarks, station, user]);
+
+  const handleCopyForATC = async () => {
+    if (!submittedText) return;
+    await Clipboard.setStringAsync(submittedText);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert("Copied!", "PIREP text copied to clipboard. You can read this to ATC.");
+  };
+
+  const handleFileWithFAA = async () => {
+    if (!submittedText) return;
+    await Clipboard.setStringAsync(submittedText);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await Linking.openURL("https://www.1800wxbrief.com");
+  };
 
   const OptionRow = ({
     label,
@@ -147,135 +201,259 @@ export function SubmitPirepModal({ visible, onClose, station }: SubmitPirepModal
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={[styles.container, { backgroundColor: bgColor }]}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: borderColor }]}>
-          <Pressable onPress={onClose} hitSlop={12}>
+          <Pressable onPress={handleClose} hitSlop={12}>
             <X size={24} color={textColor} />
           </Pressable>
           <Text style={[styles.title, { color: textColor }]}>Submit PIREP</Text>
-          <Pressable
-            onPress={handleSubmit}
-            disabled={submitting}
-            style={[styles.submitBtn, { opacity: submitting ? 0.5 : 1 }]}
-          >
-            <Send size={18} color="#FFFFFF" />
-            <Text style={styles.submitText}>
-              {submitting ? "Sending..." : "Submit"}
-            </Text>
-          </Pressable>
+          {!submittedText ? (
+            <Pressable
+              onPress={handleSubmit}
+              disabled={submitting}
+              style={[styles.submitBtn, { opacity: submitting ? 0.5 : 1 }]}
+            >
+              <Send size={18} color="#FFFFFF" />
+              <Text style={styles.submitText}>
+                {submitting ? "Sending..." : "Submit"}
+              </Text>
+            </Pressable>
+          ) : (
+            <View style={{ width: 80 }} />
+          )}
         </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Station */}
-          <View style={[styles.stationBadge, { backgroundColor: cardBg }]}>
-            <Text style={[styles.stationLabel, { color: subColor }]}>Near</Text>
-            <Text style={[styles.stationCode, { color: textColor }]}>{station}</Text>
-          </View>
+        {/* Success State */}
+        {submittedText ? (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+          >
+            <View style={[styles.successCard, { backgroundColor: cardBg, borderColor }]}>
+              <Text style={[styles.successTitle, { color: textColor }]}>
+                PIREP Submitted!
+              </Text>
+              <Text style={[styles.successSub, { color: subColor }]}>
+                Your report near {station} has been saved for all SkyBrief users.
+              </Text>
+            </View>
 
-          {/* Required Fields */}
-          <Text style={[styles.sectionTitle, { color: subColor }]}>REQUIRED</Text>
+            <Text style={[styles.sectionTitle, { color: subColor }]}>FAA PIREP FORMAT</Text>
+            <View style={[styles.rawTextBox, { backgroundColor: inputBg, borderColor }]}>
+              <Text style={[styles.rawText, { color: textColor }]}>
+                {submittedText}
+              </Text>
+            </View>
 
-          <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
-            <CloudRain size={16} color={subColor} />
-            <Text style={[styles.fieldLabel, { color: subColor }]}>Altitude (MSL)</Text>
-            <TextInput
-              style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
-              value={altitude}
-              onChangeText={setAltitude}
-              placeholder="e.g. 5500"
-              placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
-              keyboardType="number-pad"
+            <Pressable
+              onPress={handleCopyForATC}
+              style={[styles.actionBtn, { backgroundColor: colors.accent }]}
+            >
+              <Copy size={18} color="#FFFFFF" />
+              <Text style={styles.actionBtnText}>Copy for ATC</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleFileWithFAA}
+              style={[styles.actionBtn, { backgroundColor: isDark ? colors.stratus[700] : colors.stratus[200] }]}
+            >
+              <ExternalLink size={18} color={textColor} />
+              <Text style={[styles.actionBtnTextAlt, { color: textColor }]}>
+                File with FAA (1800wxbrief.com)
+              </Text>
+            </Pressable>
+
+            <Text style={[styles.faaNote, { color: subColor }]}>
+              Copies PIREP text to clipboard, then opens the FAA-approved filing service.
+            </Text>
+
+            <Pressable onPress={handleClose} style={styles.doneBtn}>
+              <Text style={[styles.doneBtnText, { color: colors.accent }]}>Done</Text>
+            </Pressable>
+
+            <View style={{ height: 60 }} />
+          </ScrollView>
+        ) : (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Station */}
+            <View style={[styles.stationBadge, { backgroundColor: cardBg }]}>
+              <Text style={[styles.stationLabel, { color: subColor }]}>Near</Text>
+              <Text style={[styles.stationCode, { color: textColor }]}>{station}</Text>
+            </View>
+
+            {/* Required Fields */}
+            <Text style={[styles.sectionTitle, { color: subColor }]}>REQUIRED</Text>
+
+            <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
+              <CloudRain size={16} color={subColor} />
+              <Text style={[styles.fieldLabel, { color: subColor }]}>Altitude (MSL)</Text>
+              <TextInput
+                style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
+                value={altitude}
+                onChangeText={setAltitude}
+                placeholder="e.g. 5500"
+                placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
+                keyboardType="number-pad"
+              />
+            </View>
+
+            <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
+              <Wind size={16} color={subColor} />
+              <Text style={[styles.fieldLabel, { color: subColor }]}>Aircraft Type</Text>
+              <TextInput
+                style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
+                value={aircraftType}
+                onChangeText={setAircraftType}
+                placeholder="e.g. C172"
+                placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            {/* Turbulence */}
+            <Text style={[styles.sectionTitle, { color: subColor }]}>CONDITIONS</Text>
+
+            <OptionRow
+              label="Turbulence"
+              options={TURBULENCE_OPTIONS.slice(0, 5).map((o) => ({
+                value: o.value,
+                label: o.label,
+              }))}
+              selected={turbulence}
+              onSelect={setTurbulence}
             />
-          </View>
 
-          <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
-            <Wind size={16} color={subColor} />
-            <Text style={[styles.fieldLabel, { color: subColor }]}>Aircraft Type</Text>
-            <TextInput
-              style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
-              value={aircraftType}
-              onChangeText={setAircraftType}
-              placeholder="e.g. C172"
-              placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
-              autoCapitalize="characters"
+            <OptionRow
+              label="Icing"
+              options={ICING_OPTIONS.map((o) => ({
+                value: o.value,
+                label: o.label,
+              }))}
+              selected={icing}
+              onSelect={setIcing}
             />
-          </View>
 
-          {/* Turbulence */}
-          <Text style={[styles.sectionTitle, { color: subColor }]}>CONDITIONS</Text>
-
-          <OptionRow
-            label="Turbulence"
-            options={TURBULENCE_OPTIONS.slice(0, 5).map((o) => ({
-              value: o.value,
-              label: o.label,
-            }))}
-            selected={turbulence}
-            onSelect={setTurbulence}
-          />
-
-          <OptionRow
-            label="Icing"
-            options={ICING_OPTIONS.map((o) => ({
-              value: o.value,
-              label: o.label,
-            }))}
-            selected={icing}
-            onSelect={setIcing}
-          />
-
-          {/* Optional Fields */}
-          <Text style={[styles.sectionTitle, { color: subColor }]}>OPTIONAL</Text>
-
-          <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
-            <Thermometer size={16} color={subColor} />
-            <Text style={[styles.fieldLabel, { color: subColor }]}>Temp (°C)</Text>
-            <TextInput
-              style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
-              value={temperature}
-              onChangeText={setTemperature}
-              placeholder="e.g. -5"
-              placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
-              keyboardType="numbers-and-punctuation"
+            {/* Sky Condition */}
+            <OptionRow
+              label="Sky Condition"
+              options={SKY_CONDITION_OPTIONS.map((o) => ({
+                value: o.value,
+                label: o.label,
+              }))}
+              selected={skyCondition}
+              onSelect={(v: SkyCondition) => setSkyCondition(v === skyCondition ? "" : v)}
             />
-          </View>
 
-          <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
-            <AlertTriangle size={16} color={subColor} />
-            <Text style={[styles.fieldLabel, { color: subColor }]}>Visibility (SM)</Text>
-            <TextInput
-              style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
-              value={flightVis}
-              onChangeText={setFlightVis}
-              placeholder="e.g. 5"
-              placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
-              keyboardType="decimal-pad"
-            />
-          </View>
+            {/* Cloud Base/Top (shown when sky != CLR and sky is set) */}
+            {skyCondition && skyCondition !== "CLR" && (
+              <>
+                <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
+                  <Cloud size={16} color={subColor} />
+                  <Text style={[styles.fieldLabel, { color: subColor }]}>Cloud Base (ft MSL)</Text>
+                  <TextInput
+                    style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
+                    value={cloudBase}
+                    onChangeText={setCloudBase}
+                    placeholder="e.g. 4500"
+                    placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
+                    keyboardType="number-pad"
+                  />
+                </View>
 
-          {/* Remarks */}
-          <View style={[styles.remarksBox, { backgroundColor: cardBg, borderColor }]}>
-            <Text style={[styles.fieldLabel, { color: subColor }]}>Remarks</Text>
-            <TextInput
-              style={[styles.remarksInput, { color: textColor, backgroundColor: inputBg }]}
-              value={remarks}
-              onChangeText={setRemarks}
-              placeholder="Additional details..."
-              placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
-              multiline
-              numberOfLines={3}
-            />
-          </View>
+                <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
+                  <Cloud size={16} color={subColor} />
+                  <Text style={[styles.fieldLabel, { color: subColor }]}>Cloud Top (ft MSL)</Text>
+                  <TextInput
+                    style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
+                    value={cloudTop}
+                    onChangeText={setCloudTop}
+                    placeholder="e.g. 8000"
+                    placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              </>
+            )}
 
-          <View style={{ height: 60 }} />
-        </ScrollView>
+            {/* Optional Fields */}
+            <Text style={[styles.sectionTitle, { color: subColor }]}>OPTIONAL</Text>
+
+            <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
+              <Thermometer size={16} color={subColor} />
+              <Text style={[styles.fieldLabel, { color: subColor }]}>Temp (°C)</Text>
+              <TextInput
+                style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
+                value={temperature}
+                onChangeText={setTemperature}
+                placeholder="e.g. -5"
+                placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
+
+            <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
+              <AlertTriangle size={16} color={subColor} />
+              <Text style={[styles.fieldLabel, { color: subColor }]}>Visibility (SM)</Text>
+              <TextInput
+                style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
+                value={flightVis}
+                onChangeText={setFlightVis}
+                placeholder="e.g. 5"
+                placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
+                keyboardType="decimal-pad"
+              />
+            </View>
+
+            <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
+              <Wind size={16} color={subColor} />
+              <Text style={[styles.fieldLabel, { color: subColor }]}>Wind Dir (°)</Text>
+              <TextInput
+                style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
+                value={windDirection}
+                onChangeText={setWindDirection}
+                placeholder="e.g. 270"
+                placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
+                keyboardType="number-pad"
+              />
+            </View>
+
+            <View style={[styles.fieldRow, { backgroundColor: cardBg, borderColor }]}>
+              <Wind size={16} color={subColor} />
+              <Text style={[styles.fieldLabel, { color: subColor }]}>Wind Speed (kts)</Text>
+              <TextInput
+                style={[styles.input, { color: textColor, backgroundColor: inputBg }]}
+                value={windSpeed}
+                onChangeText={setWindSpeed}
+                placeholder="e.g. 15"
+                placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
+                keyboardType="number-pad"
+              />
+            </View>
+
+            {/* Remarks */}
+            <View style={[styles.remarksBox, { backgroundColor: cardBg, borderColor }]}>
+              <Text style={[styles.fieldLabel, { color: subColor }]}>Remarks</Text>
+              <TextInput
+                style={[styles.remarksInput, { color: textColor, backgroundColor: inputBg }]}
+                value={remarks}
+                onChangeText={setRemarks}
+                placeholder="Additional details..."
+                placeholderTextColor={isDark ? colors.stratus[600] : colors.stratus[300]}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            <View style={{ height: 60 }} />
+          </ScrollView>
+        )}
       </View>
     </Modal>
   );
@@ -363,5 +541,63 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     minHeight: 70,
     textAlignVertical: "top",
+  },
+  // Success state
+  successCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 20,
+    alignItems: "center",
+    gap: 8,
+  },
+  successTitle: {
+    fontSize: 20,
+    fontFamily: "SpaceGrotesk_700Bold",
+  },
+  successSub: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
+  rawTextBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 14,
+  },
+  rawText: {
+    fontSize: 13,
+    fontFamily: "JetBrainsMono_500Medium",
+    lineHeight: 20,
+  },
+  actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  actionBtnText: {
+    fontSize: 15,
+    fontFamily: "SpaceGrotesk_700Bold",
+    color: "#FFFFFF",
+  },
+  actionBtnTextAlt: {
+    fontSize: 15,
+    fontFamily: "SpaceGrotesk_600SemiBold",
+  },
+  faaNote: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  doneBtn: {
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  doneBtnText: {
+    fontSize: 16,
+    fontFamily: "SpaceGrotesk_700Bold",
   },
 });

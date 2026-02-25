@@ -10,6 +10,8 @@ export default function OnboardingLayout() {
       }}
     >
       <Stack.Screen name="profile" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="join-school" />
+      <Stack.Screen name="select-instructor" />
       <Stack.Screen name="minimums" />
       <Stack.Screen name="aircraft" />
       <Stack.Screen name="permissions" />

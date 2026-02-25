@@ -5,7 +5,7 @@ export function normalizeMetar(raw: MetarResponse): NormalizedMetar {
   try {
     const tempC = raw.temp ?? 0;
     const dewpC = raw.dewp ?? 0;
-    const spread = tempC - dewpC;
+    const spread = Math.max(tempC - dewpC, 0);
 
     const ceiling = findCeiling(raw);
     // Convert visibility to string (API might return number or string)
@@ -48,6 +48,7 @@ export function normalizeMetar(raw: MetarResponse): NormalizedMetar {
         lon: raw.lon,
         elevation: raw.elev ?? 0,
       },
+      isDegraded: false,
     };
   } catch (error) {
     // Fail-safe: if parsing throws (e.g. malformed SPECI), return a safe default
@@ -73,6 +74,7 @@ export function normalizeMetar(raw: MetarResponse): NormalizedMetar {
         lon: raw?.lon ?? 0,
         elevation: raw?.elev ?? 0,
       },
+      isDegraded: true,
     };
   }
 }
@@ -83,11 +85,12 @@ function findCeiling(raw: MetarResponse): number | null {
     (c) => c.cover === "BKN" || c.cover === "OVC"
   );
   if (ceilingLayers.length === 0) return null;
-  return Math.min(...ceilingLayers.map((c) => c.base));
+  const bases = ceilingLayers.map((c) => c.base).filter(b => typeof b === 'number' && b > 0);
+  return bases.length > 0 ? Math.min(...bases) : null;
 }
 
 function parseVisibility(visib: string): number {
   if (!visib) return 10;
   if (visib.includes("+")) return parseFloat(visib.replace("+", "")) || 10;
-  return parseFloat(visib) || 0;
+  return parseFloat(visib) || 10;
 }

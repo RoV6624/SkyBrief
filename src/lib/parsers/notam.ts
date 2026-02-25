@@ -2,15 +2,15 @@ import type { NotamResponse } from "@/lib/api/types";
 import type { Notam } from "@/components/notam/NotamCard";
 
 /**
- * Normalize NOTAM API response to app-friendly format
+ * Normalize FAA NOTAM API response to app-friendly format
  */
 export function normalizeNotam(raw: NotamResponse): Notam {
   return {
-    id: raw.notamId,
-    station: raw.icaoId,
+    id: raw.number || raw.id,
+    station: raw.icaoLocation,
     category: categorizeNotam(raw.text, raw.type),
-    effectiveStart: new Date(raw.startTime * 1000), // Convert UNIX to Date
-    effectiveEnd: new Date(raw.endTime * 1000),
+    effectiveStart: new Date(raw.effectiveStart),
+    effectiveEnd: new Date(raw.effectiveEnd),
     message: raw.text.trim(),
     priority: determinePriority(raw.text, raw.type),
   };
@@ -25,7 +25,6 @@ function categorizeNotam(
 ): "runway" | "taxiway" | "navaid" | "airspace" | "other" {
   const upperText = text.toUpperCase();
 
-  // Check for runway-related keywords
   if (
     upperText.includes("RWY") ||
     upperText.includes("RUNWAY") ||
@@ -34,7 +33,6 @@ function categorizeNotam(
     return "runway";
   }
 
-  // Check for taxiway-related keywords
   if (
     upperText.includes("TWY") ||
     upperText.includes("TAXIWAY") ||
@@ -43,7 +41,6 @@ function categorizeNotam(
     return "taxiway";
   }
 
-  // Check for navaid-related keywords
   if (
     upperText.includes("ILS") ||
     upperText.includes("VOR") ||
@@ -57,7 +54,6 @@ function categorizeNotam(
     return "navaid";
   }
 
-  // Check for airspace-related keywords
   if (
     upperText.includes("AIRSPACE") ||
     upperText.includes("TFR") ||
@@ -109,6 +105,5 @@ function determinePriority(
     return "medium";
   }
 
-  // Low priority: Everything else (informational)
   return "low";
 }

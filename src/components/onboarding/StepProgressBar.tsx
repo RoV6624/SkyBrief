@@ -1,29 +1,52 @@
 import { View, Text, StyleSheet } from "react-native";
 
-const STEP_LABELS = ["Profile", "Minimums", "Aircraft", "Permissions"];
-const TOTAL_STEPS = 4;
+const DEFAULT_LABELS = ["Profile", "Minimums", "Aircraft", "Permissions"];
+const STUDENT_LABELS = ["Profile", "School", "Instructor", "Minimums", "Aircraft", "Permissions"];
+const INSTRUCTOR_LABELS = ["Profile", "School", "Minimums", "Aircraft", "Permissions"];
+
+export function getOnboardingStepConfig(experienceLevel: string): {
+  totalSteps: number;
+  labels: string[];
+} {
+  if (experienceLevel === "student") {
+    return { totalSteps: STUDENT_LABELS.length, labels: STUDENT_LABELS };
+  }
+  if (experienceLevel === "instructor") {
+    return { totalSteps: INSTRUCTOR_LABELS.length, labels: INSTRUCTOR_LABELS };
+  }
+  return { totalSteps: DEFAULT_LABELS.length, labels: DEFAULT_LABELS };
+}
 
 interface StepProgressBarProps {
   currentStep: number; // 1-indexed
+  totalSteps?: number;
+  stepLabels?: string[];
 }
 
-export function StepProgressBar({ currentStep }: StepProgressBarProps) {
+export function StepProgressBar({
+  currentStep,
+  totalSteps,
+  stepLabels,
+}: StepProgressBarProps) {
+  const steps = totalSteps ?? DEFAULT_LABELS.length;
+  const labels = stepLabels ?? DEFAULT_LABELS;
+
   return (
     <View style={styles.container}>
       <View style={styles.bar}>
-        {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+        {Array.from({ length: steps }, (_, i) => (
           <View
             key={i}
             style={[
               styles.segment,
               i < currentStep ? styles.segmentActive : styles.segmentInactive,
-              i < TOTAL_STEPS - 1 && styles.segmentGap,
+              i < steps - 1 && styles.segmentGap,
             ]}
           />
         ))}
       </View>
       <Text style={styles.label}>
-        Step {currentStep} of {TOTAL_STEPS} — {STEP_LABELS[currentStep - 1]}
+        Step {currentStep} of {steps} — {labels[currentStep - 1]}
       </Text>
     </View>
   );
