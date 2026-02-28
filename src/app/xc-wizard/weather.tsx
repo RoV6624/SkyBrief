@@ -66,7 +66,7 @@ export default function XCWizardWeatherScreen() {
     if (briefing) {
       xcStore.setRouteBriefing(briefing);
     }
-  }, [briefing]);
+  }, [briefing, xcStore]);
 
   const textColor = isDark ? "#FFFFFF" : colors.stratus[900];
   const subColor = isDark ? colors.stratus[400] : colors.stratus[500];
