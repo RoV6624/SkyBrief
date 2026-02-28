@@ -1,6 +1,6 @@
 {
   "name": "skybrief",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "index.ts",
   "expo-router-entry": "src/app",
   "scripts": {
@@ -48,6 +48,7 @@
     "firebase": "^12.9.0",
     "lucide-react-native": "^0.563.0",
     "nativewind": "^4.2.1",
+    "puppeteer": "^24.37.5",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
