@@ -192,6 +192,7 @@ export default function XCWizardRouteScreen() {
           {/* Waypoint Inputs */}
           <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)}>
             <CloudCard style={styles.card}>
+              <View style={styles.cardInner}>
               {waypoints.map((wp, idx) => (
                 <View key={idx} style={styles.wpRow}>
                   <MapPin
@@ -245,6 +246,7 @@ export default function XCWizardRouteScreen() {
                   </Text>
                 </Pressable>
               )}
+              </View>
             </CloudCard>
           </Animated.View>
 
@@ -346,7 +348,8 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     lineHeight: 20,
   },
-  card: { padding: 16, gap: 12 },
+  card: {},
+  cardInner: { gap: 12 },
   wpRow: {
     flexDirection: "row",
     alignItems: "center",

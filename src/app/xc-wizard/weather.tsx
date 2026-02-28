@@ -5,7 +5,7 @@
  * Highlights hazards and allows go/no-go assessment.
  */
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   CheckCircle2,
+  RefreshCw,
   X,
 } from "lucide-react-native";
 
@@ -58,7 +59,14 @@ export default function XCWizardWeatherScreen() {
     if (fromStore.length >= 2) return fromStore;
     return (wpParam ?? "").split(",").filter(Boolean);
   }, [wpParam, xcStore.waypoints]);
-  const { data: briefing, isLoading } = useRouteBriefing(waypoints);
+  const { data: briefing, isLoading, isError, error, refetch } = useRouteBriefing(waypoints);
+
+  // Cache briefing in the wizard store so Steps 3 & 4 can use it
+  useEffect(() => {
+    if (briefing) {
+      xcStore.setRouteBriefing(briefing);
+    }
+  }, [briefing]);
 
   const textColor = isDark ? "#FFFFFF" : colors.stratus[900];
   const subColor = isDark ? colors.stratus[400] : colors.stratus[500];
@@ -120,6 +128,32 @@ export default function XCWizardWeatherScreen() {
               <SkeletonCard />
               <SkeletonCard />
             </View>
+          ) : isError ? (
+            <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)}>
+              <CloudCard style={styles.stationCard}>
+                <View style={styles.errorContent}>
+                  <AlertTriangle size={28} color={colors.alert.amber} />
+                  <Text style={[styles.errorTitle, { color: textColor }]}>
+                    Weather Unavailable
+                  </Text>
+                  <Text style={[styles.errorMessage, { color: subColor }]}>
+                    {error instanceof Error
+                      ? error.message
+                      : "Could not load weather data. Check your connection and try again."}
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      refetch();
+                    }}
+                    style={styles.retryBtn}
+                  >
+                    <RefreshCw size={14} color="#FFFFFF" />
+                    <Text style={styles.retryText}>Retry</Text>
+                  </Pressable>
+                </View>
+              </CloudCard>
+            </Animated.View>
           ) : briefing ? (
             <>
               {/* Hazard Summary */}
@@ -201,6 +235,30 @@ export default function XCWizardWeatherScreen() {
                 );
               })}
             </>
+          ) : waypoints.length < 2 ? (
+            <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(100)}>
+              <CloudCard style={styles.stationCard}>
+                <View style={styles.errorContent}>
+                  <AlertTriangle size={28} color={colors.alert.amber} />
+                  <Text style={[styles.errorTitle, { color: textColor }]}>
+                    No Route Defined
+                  </Text>
+                  <Text style={[styles.errorMessage, { color: subColor }]}>
+                    Go back to Step 1 and enter at least two waypoints to view route weather.
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.back();
+                    }}
+                    style={styles.retryBtn}
+                  >
+                    <ArrowLeft size={14} color="#FFFFFF" />
+                    <Text style={styles.retryText}>Back to Route</Text>
+                  </Pressable>
+                </View>
+              </CloudCard>
+            </Animated.View>
           ) : null}
 
           {/* Navigation */}
@@ -331,7 +389,7 @@ const styles = StyleSheet.create({
     fontFamily: "SpaceGrotesk_600SemiBold",
     color: "#FFFFFF",
   },
-  stationCard: { padding: 14 },
+  stationCard: {},
   stationHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -362,6 +420,37 @@ const styles = StyleSheet.create({
   wxLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
   wxValue: { fontSize: 13, fontFamily: "JetBrainsMono_500Medium" },
   noData: { fontSize: 12, fontFamily: "Inter_400Regular", fontStyle: "italic" },
+  errorContent: {
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontFamily: "SpaceGrotesk_700Bold",
+  },
+  errorMessage: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 19,
+    paddingHorizontal: 8,
+  },
+  retryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  retryText: {
+    fontSize: 13,
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    color: "#FFFFFF",
+  },
   navRow: {
     flexDirection: "row",
     gap: 12,

@@ -5,7 +5,7 @@
  * Allows sharing as text and logging the flight.
  */
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Pressable,
   Share,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeInDown, useReducedMotion } from "react-native-reanimated";
@@ -26,6 +27,7 @@ import {
   ArrowLeft,
   Home,
   AlertTriangle,
+  Send,
   X,
 } from "lucide-react-native";
 
@@ -39,8 +41,14 @@ import { calculateNavLog } from "@/lib/navlog/calculate";
 import { useWBStore } from "@/stores/wb-store";
 import { calcTotalWB } from "@/lib/wb/calculations";
 import { useUserStore } from "@/stores/user-store";
+import { useTenantStore } from "@/stores/tenant-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { useContentWidth } from "@/hooks/useContentWidth";
 import { useXCWizardStore } from "@/stores/xc-wizard-store";
+import { useRouteHistoryStore } from "@/stores/route-history-store";
+import { submitDispatch } from "@/services/dispatch-api";
+import { emptySteps } from "@/lib/dispatch/types";
+import type { DispatchPacket } from "@/lib/dispatch/types";
 import type { FlightCategory } from "@/lib/api/types";
 
 export default function XCWizardSummaryScreen() {
@@ -50,8 +58,18 @@ export default function XCWizardSummaryScreen() {
   const { waypoints: wpParam } = useLocalSearchParams<{ waypoints: string }>();
   const scene = useSceneStore((s) => s.scene);
   const contentWidth = useContentWidth();
-  const { pilotName } = useUserStore();
+  const { pilotName, assignedInstructorUid, assignedInstructorName } = useUserStore();
+  const { isSchoolMode, tenantId, tenantConfig } = useTenantStore();
+  const user = useAuthStore((s) => s.user);
   const xcStore = useXCWizardStore();
+  const addHistoryEntry = useRouteHistoryStore((s) => s.addEntry);
+
+  const [dispatchSent, setDispatchSent] = useState(false);
+  const [dispatchSending, setDispatchSending] = useState(false);
+
+  // Show "Send to Instructor" when user is a student in a school with assigned instructor
+  const canSendToInstructor =
+    isSchoolMode && !!assignedInstructorUid && !!tenantId;
 
   const waypoints = useMemo(() => {
     const fromStore = xcStore.waypoints.filter((w) => w.trim().length >= 3);
@@ -59,6 +77,7 @@ export default function XCWizardSummaryScreen() {
     return (wpParam ?? "").split(",").filter(Boolean);
   }, [wpParam, xcStore.waypoints]);
   const { data: briefing } = useRouteBriefing(waypoints);
+  const activeBriefing = briefing ?? xcStore.routeBriefing;
   const { aircraft, stationWeights, fuelGallons, fuelUnit, customEmptyWeight, customEmptyArm } = useWBStore();
 
   const textColor = isDark ? "#FFFFFF" : colors.stratus[900];
@@ -70,27 +89,27 @@ export default function XCWizardSummaryScreen() {
   );
 
   const navLog = useMemo(() => {
-    if (!briefing) return null;
+    if (!activeBriefing) return null;
     return calculateNavLog(
-      briefing.legs,
-      briefing.weatherPoints,
+      activeBriefing.legs,
+      activeBriefing.weatherPoints,
       aircraft.cruiseSpeedKts,
       aircraft.fuelBurnRateGPH
     );
-  }, [briefing, aircraft.cruiseSpeedKts, aircraft.fuelBurnRateGPH]);
+  }, [activeBriefing, aircraft.cruiseSpeedKts, aircraft.fuelBurnRateGPH]);
 
   const worstCategory = useMemo(() => {
-    if (!briefing) return "VFR" as FlightCategory;
+    if (!activeBriefing) return "VFR" as FlightCategory;
     const rank: Record<FlightCategory, number> = { VFR: 0, MVFR: 1, IFR: 2, LIFR: 3 };
     let worst: FlightCategory = "VFR";
-    for (const wp of briefing.weatherPoints) {
+    for (const wp of activeBriefing.weatherPoints) {
       if (wp.metar?.flightCategory) {
         const cat = wp.metar.flightCategory;
         if (rank[cat] > rank[worst]) worst = cat;
       }
     }
     return worst;
-  }, [briefing]);
+  }, [activeBriefing]);
 
   const generateBriefingText = useCallback(() => {
     const lines: string[] = [
@@ -114,8 +133,8 @@ export default function XCWizardSummaryScreen() {
     }
 
     lines.push("", "── Weather Along Route ──");
-    if (briefing) {
-      for (const wp of briefing.weatherPoints) {
+    if (activeBriefing) {
+      for (const wp of activeBriefing.weatherPoints) {
         const m = wp.metar;
         if (m) {
           lines.push(
@@ -130,11 +149,20 @@ export default function XCWizardSummaryScreen() {
     lines.push(`CG: ${wbResult.cg.toFixed(1)} in`);
     lines.push(`Envelope: ${wbResult.isCGInEnvelope ? "WITHIN LIMITS" : "OUT OF LIMITS"}`);
 
+    lines.push("", "── Risk Assessment ──");
+    if (xcStore.fratResult) {
+      lines.push(`FRAT Score: ${xcStore.fratResult.totalScore}`);
+      lines.push(`Risk Level: ${xcStore.fratResult.riskLevel.toUpperCase()}`);
+      lines.push(`Recommendation: ${xcStore.fratResult.recommendation}`);
+    } else {
+      lines.push("Not completed");
+    }
+
     lines.push("", "═══════════════════════════════════════");
     lines.push("Generated by SkyBrief");
 
     return lines.join("\n");
-  }, [pilotName, aircraft, waypoints, navLog, briefing, wbResult]);
+  }, [pilotName, aircraft, waypoints, navLog, activeBriefing, wbResult, xcStore.fratResult]);
 
   const handleShare = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -148,10 +176,98 @@ export default function XCWizardSummaryScreen() {
     }
   }, [generateBriefingText, waypoints]);
 
+  const handleSendToInstructor = useCallback(async () => {
+    if (!canSendToInstructor || dispatchSent || dispatchSending) return;
+    if (!user?.uid) return;
+
+    setDispatchSending(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const depWx = activeBriefing?.weatherPoints[0]?.metar ?? null;
+
+    const packet: DispatchPacket = {
+      id: "", // server generates
+      studentUid: user.uid,
+      studentName: pilotName || "Student",
+      instructorUid: assignedInstructorUid!,
+      instructorName: assignedInstructorName || "Instructor",
+      tenantId: tenantId!,
+      station: waypoints[0] ?? "",
+      stationName: waypoints[0] ?? "",
+      flightType: "local",
+      status: "submitted",
+      briefingRecord: null,
+      fratResult: xcStore.fratResult,
+      fratInputs: xcStore.fratInputs,
+      wbSnapshot: {
+        aircraftType: aircraft.name,
+        totalWeight: wbResult.totalWeight,
+        cg: wbResult.cg,
+        withinLimits: wbResult.isCGInEnvelope && !wbResult.isOverweight,
+        timestamp: new Date(),
+      },
+      goNoGoResult: null,
+      weatherSnapshot: depWx,
+      completedSteps: {
+        briefing: true,
+        frat: !!xcStore.fratResult,
+        wb: true,
+        checklist: true,
+      },
+      createdAt: new Date(),
+      submittedAt: new Date(),
+      reviewedAt: null,
+      reviewerComment: null,
+      preflightStartedAt: null,
+      departedAt: null,
+    };
+
+    const docId = await submitDispatch(packet);
+    setDispatchSending(false);
+
+    if (docId) {
+      setDispatchSent(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Alert.alert("Send Failed", "Could not send to instructor. Check your connection and try again.");
+    }
+  }, [
+    canSendToInstructor,
+    dispatchSent,
+    dispatchSending,
+    user,
+    pilotName,
+    assignedInstructorUid,
+    assignedInstructorName,
+    tenantId,
+    waypoints,
+    activeBriefing,
+    aircraft,
+    wbResult,
+    xcStore.fratResult,
+    xcStore.fratInputs,
+  ]);
+
   const handleDone = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Save to route history so it shows in "Recent Briefings"
+    addHistoryEntry({
+      waypoints,
+      flightType: "VFR", // XC wizard is VFR-only; update if IFR support is added
+      isAutoGenerated: false,
+      totalDistanceNm: navLog ? Math.round(navLog.totalDistance) : 0,
+      worstCategory,
+      legCount: activeBriefing?.legs.length ?? 0,
+    });
+
     xcStore.reset();
+
+    // Navigate to the Route tab so the user sees their new briefing
     router.dismissAll();
+    setTimeout(() => {
+      router.replace("/(tabs)/route");
+    }, 0);
   };
 
   const catColor =
@@ -262,7 +378,7 @@ export default function XCWizardSummaryScreen() {
               {[
                 {
                   label: "Weather Reviewed",
-                  ok: true,
+                  ok: !!activeBriefing,
                 },
                 {
                   label: "Weight & Balance",
@@ -271,6 +387,10 @@ export default function XCWizardSummaryScreen() {
                 {
                   label: "Fuel Planning",
                   ok: navLog ? fuelGallons >= navLog.totalFuel * 1.3 : false,
+                },
+                {
+                  label: "Risk Assessment (FRAT)",
+                  ok: !!xcStore.fratResult,
                 },
                 { label: "Route Planned", ok: waypoints.length >= 2 },
               ].map((item, idx) => (
@@ -290,6 +410,28 @@ export default function XCWizardSummaryScreen() {
 
           {/* Actions */}
           <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(200)} style={styles.actions}>
+            {canSendToInstructor && (
+              <Pressable
+                onPress={handleSendToInstructor}
+                disabled={dispatchSent || dispatchSending}
+                style={[
+                  styles.instructorBtn,
+                  dispatchSent && styles.instructorBtnSent,
+                ]}
+              >
+                {dispatchSending ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : dispatchSent ? (
+                  <CheckCircle2 size={18} color="#FFFFFF" />
+                ) : (
+                  <Send size={18} color="#FFFFFF" />
+                )}
+                <Text style={styles.instructorBtnText}>
+                  {dispatchSent ? "Sent to Instructor" : "Send to Instructor"}
+                </Text>
+              </Pressable>
+            )}
+
             <Pressable onPress={handleShare} style={styles.shareBtn}>
               <Share2 size={18} color="#FFFFFF" />
               <Text style={styles.shareBtnText}>Share Briefing</Text>
@@ -383,7 +525,7 @@ const styles = StyleSheet.create({
     fontFamily: "SpaceGrotesk_700Bold",
     color: "#FFFFFF",
   },
-  card: { padding: 16 },
+  card: {},
   routeTitle: {
     fontSize: 20,
     fontFamily: "JetBrainsMono_700Bold",
@@ -434,6 +576,23 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
   },
   actions: { gap: 10 },
+  instructorBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.accent,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  instructorBtnSent: {
+    backgroundColor: colors.alert.green,
+  },
+  instructorBtnText: {
+    fontSize: 15,
+    fontFamily: "SpaceGrotesk_700Bold",
+    color: "#FFFFFF",
+  },
   shareBtn: {
     flexDirection: "row",
     alignItems: "center",

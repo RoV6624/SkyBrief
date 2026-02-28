@@ -399,6 +399,28 @@ export default function SettingsScreen() {
             </CloudCard>
           </Animated.View>
 
+          {/* Instructor Dashboard */}
+          {role && isInstructorRole(role) && (
+          <Animated.View entering={FadeInDown.delay(60)} style={styles.gap}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/instructor" as any);
+              }}
+              style={({ pressed }) => [
+                styles.adminBtn,
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <View style={styles.adminBtnRow}>
+                <ClipboardList size={20} color={colors.accent} />
+                <Text style={styles.adminBtnText}>Instructor Dashboard</Text>
+                <ChevronRight size={18} color={colors.accent} />
+              </View>
+            </Pressable>
+          </Animated.View>
+          )}
+
           {/* Theme */}
           <Animated.View entering={FadeInDown.delay(100)} style={styles.gap}>
             <CloudCard>
@@ -973,25 +995,6 @@ export default function SettingsScreen() {
             </CloudCard>
           </Animated.View>
 
-          {/* Instructor Dashboard */}
-          {role && isInstructorRole(role) && (
-          <Animated.View entering={FadeInDown.delay(270)} style={styles.gap}>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push("/instructor" as any);
-              }}
-              style={({ pressed }) => [
-                styles.adminBtn,
-                pressed && { opacity: 0.8 },
-              ]}
-            >
-              <ClipboardList size={18} color={colors.stratus[500]} />
-              <Text style={styles.adminBtnText}>Instructor Dashboard</Text>
-              <ChevronRight size={16} color={colors.stratus[400]} />
-            </Pressable>
-          </Animated.View>
-          )}
 
           {/* Security */}
           <Animated.View entering={FadeInDown.delay(275)} style={styles.gap}>
@@ -1108,8 +1111,8 @@ export default function SettingsScreen() {
             </Animated.View>
           )}
 
-          {/* Sign Out */}
-          <Animated.View entering={FadeInDown.delay(325)} style={styles.gap}>
+          {/* Sign Out & Delete Account */}
+          <Animated.View entering={FadeInDown.delay(325)} style={[styles.gap, styles.accountActionsRow]}>
             <Pressable
               onPress={handleSignOut}
               style={({ pressed }) => [
@@ -1117,13 +1120,10 @@ export default function SettingsScreen() {
                 pressed && { opacity: 0.8 },
               ]}
             >
-              <LogOut size={18} color={colors.alert.red} />
+              <LogOut size={16} color={colors.alert.red} />
               <Text style={styles.signOutText}>Sign Out</Text>
             </Pressable>
-          </Animated.View>
 
-          {/* Delete Account */}
-          <Animated.View entering={FadeInDown.delay(350)} style={styles.gap}>
             <Pressable
               onPress={handleDeleteAccount}
               disabled={deleteLoading}
@@ -1133,7 +1133,7 @@ export default function SettingsScreen() {
                 deleteLoading && { opacity: 0.6 },
               ]}
             >
-              <Trash2 size={18} color={colors.alert.red} />
+              <Trash2 size={14} color="rgba(239,68,68,0.5)" />
               <Text style={styles.deleteText}>
                 {deleteLoading ? "Deleting..." : "Delete Account"}
               </Text>
@@ -1472,53 +1472,57 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   adminBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "rgba(12,140,233,0.06)",
+    backgroundColor: "rgba(212,168,83,0.12)",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(12,140,233,0.12)",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    borderColor: "rgba(212,168,83,0.3)",
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+  },
+  adminBtnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   adminBtnText: {
     flex: 1,
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-    color: colors.stratus[700],
+    fontSize: 16,
+    fontFamily: "SpaceGrotesk_700Bold",
+    color: colors.accent,
+  },
+  accountActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   signOutBtn: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 8,
     backgroundColor: "rgba(239,68,68,0.08)",
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(239,68,68,0.15)",
-    paddingVertical: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
   },
   signOutText: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "Inter_600SemiBold",
     color: colors.alert.red,
   },
   deleteBtn: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "rgba(239,68,68,0.04)",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(239,68,68,0.1)",
-    paddingVertical: 14,
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   deleteText: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
     color: colors.alert.red,
+    opacity: 0.5,
   },
   homeAirportCol: {
     flexDirection: 'column',
