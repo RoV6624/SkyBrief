@@ -54,7 +54,7 @@ let googleSignInConfigured = false;
 async function ensureGoogleSignInConfigured(): Promise<void> {
   if (googleSignInConfigured) return;
   if (!GOOGLE_WEB_CLIENT_ID) {
-    throw new Error("Google Sign-In is not configured. Missing EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.");
+    throw new Error("Google Sign-In is temporarily unavailable. Please try again later or use email sign-in.");
   }
   await GoogleSignin.configure({
     webClientId: GOOGLE_WEB_CLIENT_ID,
@@ -78,7 +78,7 @@ export async function signInWithGoogle(): Promise<FirebaseAuthTypes.UserCredenti
 
 export async function signInWithApple(): Promise<FirebaseAuthTypes.UserCredential> {
   if (!AppleAuthentication || !Crypto) {
-    throw new Error("Apple Sign-In is not available. Please rebuild the app.");
+    throw new Error("Apple Sign-In is temporarily unavailable. Please try again later or use email sign-in.");
   }
   const nonce = Math.random().toString(36).substring(2, 10);
   const hashedNonce = await Crypto.digestStringAsync(
@@ -114,7 +114,7 @@ export async function signInWithApple(): Promise<FirebaseAuthTypes.UserCredentia
 
 export async function reauthenticateWithApple(): Promise<void> {
   if (!AppleAuthentication || !Crypto) {
-    throw new Error("Apple Sign-In is not available. Please rebuild the app.");
+    throw new Error("Apple Sign-In is temporarily unavailable. Please try again later or use email sign-in.");
   }
   const nonce = Math.random().toString(36).substring(2, 10);
   const hashedNonce = await Crypto.digestStringAsync(
@@ -224,7 +224,7 @@ export async function reauthenticateWithEmail(password: string): Promise<void> {
  */
 export async function reauthenticateWithGoogle(): Promise<void> {
   if (!GOOGLE_WEB_CLIENT_ID) {
-    throw new Error("Google Sign-In is not configured.");
+    throw new Error("Google Sign-In is temporarily unavailable. Please try again later.");
   }
   const signInResult = await GoogleSignin.signIn();
   const idToken = signInResult?.data?.idToken;
