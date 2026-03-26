@@ -80,7 +80,8 @@ export async function signInWithApple(): Promise<FirebaseAuthTypes.UserCredentia
   if (!AppleAuthentication || !Crypto) {
     throw new Error("Apple Sign-In is temporarily unavailable. Please try again later or use email sign-in.");
   }
-  const nonce = Math.random().toString(36).substring(2, 10);
+  const randomBytes = await Crypto.getRandomBytesAsync(32);
+  const nonce = Array.from(new Uint8Array(randomBytes)).map(b => b.toString(16).padStart(2, "0")).join("");
   const hashedNonce = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
     nonce
@@ -116,7 +117,8 @@ export async function reauthenticateWithApple(): Promise<void> {
   if (!AppleAuthentication || !Crypto) {
     throw new Error("Apple Sign-In is temporarily unavailable. Please try again later or use email sign-in.");
   }
-  const nonce = Math.random().toString(36).substring(2, 10);
+  const randomBytes = await Crypto.getRandomBytesAsync(32);
+  const nonce = Array.from(new Uint8Array(randomBytes)).map(b => b.toString(16).padStart(2, "0")).join("");
   const hashedNonce = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
     nonce

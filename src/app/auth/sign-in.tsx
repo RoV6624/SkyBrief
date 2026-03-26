@@ -164,11 +164,11 @@ export default function SignInScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLoading(true);
     try {
-      console.log("[Auth] Attempting", isSignUp ? "sign up" : "sign in", "for:", trimmedEmail);
+      if (__DEV__) console.log("[Auth] Attempting", isSignUp ? "sign up" : "sign in", "for:", trimmedEmail);
       const result = isSignUp
         ? await signUpWithEmail(trimmedEmail, password)
         : await signInWithEmail(trimmedEmail, password);
-      console.log("[Auth] Success for uid:", result.user.uid);
+      if (__DEV__) console.log("[Auth] Success for uid:", result.user.uid);
       await setUser({
         uid: result.user.uid,
         email: result.user.email,
@@ -193,7 +193,7 @@ export default function SignInScreen() {
       return;
     }
     try {
-      console.log("[Auth] Sending password reset to:", trimmedEmail);
+      if (__DEV__) console.log("[Auth] Sending password reset to:", trimmedEmail);
       await resetPassword(trimmedEmail);
       Alert.alert("Password Reset", "Check your email (including spam) for reset instructions.");
     } catch (error: any) {
