@@ -7,6 +7,16 @@ import {
   GoogleSignin,
   statusCodes,
 } from "@react-native-google-signin/google-signin";
+// Lazy-loaded to avoid crash if native modules aren't available in dev client
+let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
+let Crypto: typeof import("expo-crypto") | null = null;
+
+try {
+  AppleAuthentication = require("expo-apple-authentication");
+  Crypto = require("expo-crypto");
+} catch {
+  console.warn("[Firebase] Apple Sign-In modules not available (rebuild dev client to enable)");
+}
 import type {
   ApiFuelPriceResponse,
   CombinedFuelPrice,
@@ -64,6 +74,70 @@ export async function signInWithGoogle(): Promise<FirebaseAuthTypes.UserCredenti
   const a = getAuth();
   if (!a) throw new Error("Firebase Auth is not available.");
   return a.signInWithCredential(googleCredential);
+}
+
+export async function signInWithApple(): Promise<FirebaseAuthTypes.UserCredential> {
+  if (!AppleAuthentication || !Crypto) {
+    throw new Error("Apple Sign-In is not available. Please rebuild the app.");
+  }
+  const nonce = Math.random().toString(36).substring(2, 10);
+  const hashedNonce = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    nonce
+  );
+  const credential = await AppleAuthentication.signInAsync({
+    requestedScopes: [
+      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+      AppleAuthentication.AppleAuthenticationScope.EMAIL,
+    ],
+    nonce: hashedNonce,
+  });
+  const { identityToken } = credential;
+  if (!identityToken) {
+    throw new Error("Apple Sign-In failed: no identity token");
+  }
+  const appleCredential = auth.AppleAuthProvider.credential(identityToken, nonce);
+  const a = getAuth();
+  if (!a) throw new Error("Firebase Auth is not available.");
+  const result = await a.signInWithCredential(appleCredential);
+  // Apple only provides name on first sign-in — update profile if available
+  if (credential.fullName) {
+    const displayName = [credential.fullName.givenName, credential.fullName.familyName]
+      .filter(Boolean)
+      .join(" ");
+    if (displayName && !result.user.displayName) {
+      await result.user.updateProfile({ displayName });
+    }
+  }
+  return result;
+}
+
+export async function reauthenticateWithApple(): Promise<void> {
+  if (!AppleAuthentication || !Crypto) {
+    throw new Error("Apple Sign-In is not available. Please rebuild the app.");
+  }
+  const nonce = Math.random().toString(36).substring(2, 10);
+  const hashedNonce = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    nonce
+  );
+  const credential = await AppleAuthentication.signInAsync({
+    requestedScopes: [
+      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+      AppleAuthentication.AppleAuthenticationScope.EMAIL,
+    ],
+    nonce: hashedNonce,
+  });
+  const { identityToken } = credential;
+  if (!identityToken) {
+    throw new Error("Apple re-authentication failed: no identity token");
+  }
+  const appleCredential = auth.AppleAuthProvider.credential(identityToken, nonce);
+  const currentUser = safeCurrentUser();
+  if (!currentUser) {
+    throw new Error("No authenticated user found.");
+  }
+  await currentUser.reauthenticateWithCredential(appleCredential);
 }
 
 export async function signInWithEmail(

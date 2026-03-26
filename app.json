@@ -2,7 +2,7 @@
   "expo": {
     "name": "SkyBrief",
     "slug": "sky-brief",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "skybrief",
@@ -16,8 +16,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.skybrief.app",
-      "buildNumber": "18",
+      "buildNumber": "21",
       "googleServicesFile": "./GoogleService-Info.plist",
+      "entitlements": {
+        "com.apple.developer.applesignin": ["Default"]
+      },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "SkyBrief uses your location to find nearby weather stations.",
         "ITSAppUsesNonExemptEncryption": false,
@@ -27,6 +30,7 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      "expo-apple-authentication",
       "@react-native-firebase/app",
       "@react-native-google-signin/google-signin",
       [

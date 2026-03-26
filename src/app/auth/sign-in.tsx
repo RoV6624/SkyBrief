@@ -16,8 +16,15 @@ import { useRouter } from "expo-router";
 import Animated, { FadeInDown, useReducedMotion } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { Mail, Lock, ArrowLeft, CloudSun, Eye, EyeOff } from "lucide-react-native";
+let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
+try {
+  AppleAuthentication = require("expo-apple-authentication");
+} catch {
+  // Not available in current dev client build
+}
 import {
   signInWithGoogle,
+  signInWithApple,
   signInWithEmail,
   signUpWithEmail,
   resetPassword,
@@ -25,6 +32,30 @@ import {
 import { useAuthStore } from "@/stores/auth-store";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function firebaseErrorMessage(error: any): string {
+  const code = error?.code || error?.message || "";
+  switch (code) {
+    case "auth/user-not-found":
+      return "No account found with this email. Try creating an account instead.";
+    case "auth/wrong-password":
+      return "Incorrect password. Please try again or reset your password.";
+    case "auth/invalid-credential":
+      return "Invalid email or password. Please check and try again.";
+    case "auth/invalid-email":
+      return "Please enter a valid email address.";
+    case "auth/user-disabled":
+      return "This account has been disabled. Contact support for help.";
+    case "auth/too-many-requests":
+      return "Too many failed attempts. Please wait a few minutes and try again.";
+    case "auth/network-request-failed":
+      return "Network error. Please check your connection and try again.";
+    case "auth/email-already-in-use":
+      return "An account already exists with this email. Try signing in instead.";
+    default:
+      return error?.message || "An unexpected error occurred. Please try again.";
+  }
+}
 
 function isPasswordStrong(password: string): boolean {
   return password.length >= 8 && /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
@@ -93,12 +124,33 @@ export default function SignInScreen() {
     }
   };
 
+  const handleAppleSignIn = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setLoading(true);
+    try {
+      const result = await signInWithApple();
+      setUser({
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
+        photoURL: result.user.photoURL,
+      });
+    } catch (error: any) {
+      // User cancelled — don't show alert
+      if (error?.code === "ERR_REQUEST_CANCELED") return;
+      Alert.alert("Sign In Failed", error.message || "Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEmailAuth = async () => {
-    if (!email || !password) {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !password) {
       Alert.alert("Missing Fields", "Please enter email and password.");
       return;
     }
-    if (!EMAIL_REGEX.test(email)) {
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
       Alert.alert("Invalid Email", "Please enter a valid email address.");
       return;
     }
@@ -112,9 +164,11 @@ export default function SignInScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLoading(true);
     try {
+      console.log("[Auth] Attempting", isSignUp ? "sign up" : "sign in", "for:", trimmedEmail);
       const result = isSignUp
-        ? await signUpWithEmail(email, password)
-        : await signInWithEmail(email, password);
+        ? await signUpWithEmail(trimmedEmail, password)
+        : await signInWithEmail(trimmedEmail, password);
+      console.log("[Auth] Success for uid:", result.user.uid);
       await setUser({
         uid: result.user.uid,
         email: result.user.email,
@@ -122,9 +176,10 @@ export default function SignInScreen() {
         photoURL: result.user.photoURL,
       });
     } catch (error: any) {
+      console.error("[Auth] Error:", error?.code, error?.message);
       Alert.alert(
         isSignUp ? "Sign Up Failed" : "Sign In Failed",
-        error.message || "Please try again."
+        firebaseErrorMessage(error)
       );
     } finally {
       setLoading(false);
@@ -132,15 +187,18 @@ export default function SignInScreen() {
   };
 
   const handleForgotPassword = async () => {
-    if (!email) {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail) {
       Alert.alert("Email Required", "Please enter your email first.");
       return;
     }
     try {
-      await resetPassword(email);
-      Alert.alert("Password Reset", "Check your email for reset instructions.");
+      console.log("[Auth] Sending password reset to:", trimmedEmail);
+      await resetPassword(trimmedEmail);
+      Alert.alert("Password Reset", "Check your email (including spam) for reset instructions.");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Could not send reset email.");
+      console.error("[Auth] Reset error:", error?.code, error?.message);
+      Alert.alert("Error", firebaseErrorMessage(error));
     }
   };
 
@@ -321,6 +379,17 @@ export default function SignInScreen() {
               </View>
               <Text style={styles.googleText}>Continue with Google</Text>
             </Pressable>
+
+            {/* Sign in with Apple */}
+            {Platform.OS === "ios" && AppleAuthentication && (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                cornerRadius={14}
+                style={styles.appleButton}
+                onPress={handleAppleSignIn}
+              />
+            )}
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -480,5 +549,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     color: "#ffffff",
+  },
+  appleButton: {
+    width: "100%",
+    height: 50,
   },
 });
