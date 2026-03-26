@@ -246,11 +246,11 @@ export default function PaywallScreen() {
               App Store account settings.
             </Text>
             <View style={styles.legalLinks}>
-              <Pressable onPress={() => Linking.openURL("https://skybrief.app/terms")}>
+              <Pressable onPress={() => Linking.openURL("https://rov6624.github.io/SkyBrief/terms.html")}>
                 <Text style={styles.legalLinkText}>Terms of Use (EULA)</Text>
               </Pressable>
               <Text style={styles.legalDivider}>|</Text>
-              <Pressable onPress={() => Linking.openURL("https://skybrief.app/privacy")}>
+              <Pressable onPress={() => Linking.openURL("https://rov6624.github.io/SkyBrief/privacy.html")}>
                 <Text style={styles.legalLinkText}>Privacy Policy</Text>
               </Pressable>
             </View>
