@@ -214,25 +214,32 @@ export async function fetchRouteWeather(
 }
 
 export async function fetchNotams(icao: string): Promise<NotamResponse[]> {
-  // Call FAA NOTAM API directly — no CORS restrictions in React Native
-  const clientId = process.env.EXPO_PUBLIC_FAA_NOTAM_CLIENT_ID ?? "";
-  const clientSecret = process.env.EXPO_PUBLIC_FAA_NOTAM_CLIENT_SECRET ?? "";
-
-  if (!clientId || !clientSecret) {
-    console.warn("[NOTAM] FAA NOTAM API credentials not configured — skipping NOTAM fetch");
+  // Route through Cloud Function proxy to keep FAA credentials server-side
+  const { getCurrentIdToken } = await import("@/services/firebase");
+  const idToken = await getCurrentIdToken();
+  if (!idToken) {
+    console.warn("[NOTAM] Not authenticated — skipping NOTAM fetch");
     return [];
   }
 
-  const url = `https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${encodeURIComponent(icao.toUpperCase())}&sortBy=effectiveStartDate&sortOrder=Desc&pageSize=50`;
+  const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+  if (!projectId) {
+    console.warn("[NOTAM] Firebase project not configured — skipping NOTAM fetch");
+    return [];
+  }
+
+  const url = `https://us-central1-${projectId}.cloudfunctions.net/fetchNotams?icao=${encodeURIComponent(icao.toUpperCase())}`;
 
   const res = await fetch(url, {
     headers: {
-      client_id: clientId,
-      client_secret: clientSecret,
+      Authorization: `Bearer ${idToken}`,
     },
   });
 
-  if (!res.ok) throw new Error(`NOTAM fetch failed: ${res.status}`);
+  if (!res.ok) {
+    console.warn(`[NOTAM] Proxy returned ${res.status}`);
+    return [];
+  }
   const data: FaaNotamApiResponse = await res.json();
   return data.items ?? [];
 }
