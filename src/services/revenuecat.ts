@@ -94,6 +94,8 @@ export function hasPremiumEntitlement(info: CustomerInfo): boolean {
 export function addCustomerInfoListener(
   listener: CustomerInfoListener
 ): () => void {
-  const remove = Purchases.addCustomerInfoUpdateListener(listener);
-  return remove;
+  Purchases.addCustomerInfoUpdateListener(listener);
+  return () => {
+    // RevenueCat SDK manages listener lifecycle internally
+  };
 }

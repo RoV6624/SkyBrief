@@ -10,8 +10,14 @@ export async function fetchMetar(ids: string): Promise<MetarResponse[]> {
     `${AVIATION_WEATHER_BASE}/metar?ids=${encodeURIComponent(ids)}&format=json`
   );
   if (!res.ok) throw new Error(`METAR fetch failed: ${res.status}`);
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  const text = await res.text();
+  if (!text || text.trim().length === 0) return [];
+  try {
+    const data = JSON.parse(text);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchTaf(ids: string): Promise<TafResponse[]> {
@@ -19,8 +25,14 @@ export async function fetchTaf(ids: string): Promise<TafResponse[]> {
     `${AVIATION_WEATHER_BASE}/taf?ids=${encodeURIComponent(ids)}&format=json`
   );
   if (!res.ok) throw new Error(`TAF fetch failed: ${res.status}`);
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  const text = await res.text();
+  if (!text || text.trim().length === 0) return [];
+  try {
+    const data = JSON.parse(text);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchNearbyMetars(
@@ -169,21 +181,55 @@ export async function resolveAndFetchTaf(
 export async function fetchRouteWeather(
   ids: string
 ): Promise<{ metars: MetarResponse[]; tafs: TafResponse[] }> {
-  const [metars, tafs] = await Promise.all([fetchMetar(ids), fetchTaf(ids)]);
+  // aviationweather.gov returns 414 when too many station IDs exceed the
+  // URL length limit. Split into batches of 20 to stay well under the limit.
+  const stations = ids.split(",").filter(Boolean);
+  const BATCH_SIZE = 20;
+
+  if (stations.length <= BATCH_SIZE) {
+    const [metars, tafs] = await Promise.all([fetchMetar(ids), fetchTaf(ids)]);
+    return { metars, tafs };
+  }
+
+  const batches: string[][] = [];
+  for (let i = 0; i < stations.length; i += BATCH_SIZE) {
+    batches.push(stations.slice(i, i + BATCH_SIZE));
+  }
+
+  const results = await Promise.all(
+    batches.map((batch) => {
+      const batchIds = batch.join(",");
+      return Promise.all([fetchMetar(batchIds), fetchTaf(batchIds)]);
+    })
+  );
+
+  const metars: MetarResponse[] = [];
+  const tafs: TafResponse[] = [];
+  for (const [m, t] of results) {
+    metars.push(...m);
+    tafs.push(...t);
+  }
+
   return { metars, tafs };
 }
 
 export async function fetchNotams(icao: string): Promise<NotamResponse[]> {
-  // Proxy through Cloud Function to keep FAA credentials server-side
-  const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? "";
-  const url = `https://us-central1-${projectId}.cloudfunctions.net/fetchNotams?icao=${encodeURIComponent(icao)}`;
+  // Call FAA NOTAM API directly — no CORS restrictions in React Native
+  const clientId = process.env.EXPO_PUBLIC_FAA_NOTAM_CLIENT_ID ?? "";
+  const clientSecret = process.env.EXPO_PUBLIC_FAA_NOTAM_CLIENT_SECRET ?? "";
 
-  // Get auth token for the Cloud Function
-  const { getCurrentIdToken } = await import("@/services/firebase");
-  const token = await getCurrentIdToken();
+  if (!clientId || !clientSecret) {
+    console.warn("[NOTAM] FAA NOTAM API credentials not configured — skipping NOTAM fetch");
+    return [];
+  }
+
+  const url = `https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${encodeURIComponent(icao.toUpperCase())}&sortBy=effectiveStartDate&sortOrder=Desc&pageSize=50`;
 
   const res = await fetch(url, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: {
+      client_id: clientId,
+      client_secret: clientSecret,
+    },
   });
 
   if (!res.ok) throw new Error(`NOTAM fetch failed: ${res.status}`);

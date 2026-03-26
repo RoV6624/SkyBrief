@@ -2,7 +2,12 @@ import { useState, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Brain, AlertTriangle, CheckCircle, XCircle, Volume2, VolumeX } from "lucide-react-native";
-import * as Speech from "expo-speech";
+let Speech: typeof import("expo-speech") | null = null;
+try {
+  Speech = require("expo-speech");
+} catch {
+  // expo-speech not available in current build
+}
 import * as Haptics from "expo-haptics";
 import { CloudCard } from "@/components/ui/CloudCard";
 import { SeverityBadge } from "@/components/ui/Badge";
@@ -40,6 +45,7 @@ export function AiBriefingCard({ briefing }: AiBriefingCardProps) {
 
   const handleVoiceBriefing = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!Speech) return;
     if (isSpeaking) {
       Speech.stop();
       setIsSpeaking(false);
